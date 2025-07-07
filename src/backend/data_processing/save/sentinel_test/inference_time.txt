@@ -1,0 +1,1 @@
+Inference completed for /Users/arthur/Documents/coding/EODT4Crises/src/backend/model_files/spacenet_custom.yaml in 31.207701206207275 seconds.

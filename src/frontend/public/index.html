@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EODT4Crises - Interactive Map</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+    <style>
+        html, body, #map { height: 100%; width: 100%; margin: 0; padding: 0; font-family: sans-serif; }
+        .title-overlay { position: absolute; top: 10px; left: 50px; z-index: 1000; background: rgba(255, 255, 255, 0.8); padding: 10px; border-radius: 5px; font-size: 1.2em; font-weight: bold; }
+        .controls-container { position: absolute; top: 65px; left: 50px; z-index: 1000; background: rgba(255, 255, 255, 0.8); padding: 10px; border-radius: 5px; max-width: 240px; }
+        .layer-control, .date-control-item { display: flex; align-items: center; margin-bottom: 10px; }
+        .layer-control:last-child { margin-bottom: 0; }
+        .layer-control .toggle-label, .date-control-item label { margin-left: 8px; font-size: 1em; }
+        .switch { position: relative; display: inline-block; width: 50px; height: 24px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; }
+        .slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background-color: white; transition: .4s; }
+        input:checked + .slider { background-color: #007bff; }
+        input:focus + .slider { box-shadow: 0 0 1px #007bff; }
+        input:checked + .slider:before { transform: translateX(26px); }
+        .slider.round { border-radius: 24px; }
+        .slider.round:before { border-radius: 50%; }
+        #loader { position: absolute; top: 50%; left: 50%; z-index: 2000; transform: translate(-50%, -50%); background: rgba(255, 255, 255, 0.9); padding: 20px; border-radius: 10px; font-size: 1.2em; display: none; }
+        .section-divider { margin-top: 15px; border-top: 1px solid #ccc; padding-top: 10px; }
+        .road-filters label { display: block; }
+        .action-button { width: 100%; padding: 8px; margin-top: 10px; background-color: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        .action-button:hover { background-color: #0056b3; }
+        .action-button:disabled { background-color: #cccccc; cursor: not-allowed; }
+        .leaflet-popup-content { font-size: 12px; line-height: 1.5; }
+        .image-layer-card { border: 1px solid #ddd; border-radius: 4px; padding: 10px; margin-top: 10px; }
+        .image-layer-card h4 { margin: 0 0 10px 0; font-size: 1em; }
+        .delete-btn { font-size: 0.8em; padding: 2px 5px; background-color: #dc3545; }
+        .delete-btn:hover { background-color: #c82333; }
+        .collapsible-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            user-select: none; /* Prevent text selection on click */
+        }
+        .collapsible-header .arrow {
+            transition: transform 0.2s ease-in-out;
+        }
+        .collapsible-header.active .arrow {
+            transform: rotate(180deg);
+        }
+        .collapsible-content { display: none; padding-top: 10px; }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    <div id="loader">Processing...</div>
+    <div class="title-overlay">EODT4Crises Road Identification</div>
+    <div class="controls-container">
+        <div class="layer-control">
+            <label class="switch"><input type="checkbox" id="baseMapToggle" checked><span class="slider round"></span></label>
+            <span class="toggle-label">Show Base Map</span>
+        </div>
+        <div class="layer-control">
+            <label class="switch"><input type="checkbox" id="roadToggle" checked><span class="slider round"></span></label>
+            <span class="toggle-label">Show OSM Roads</span>
+        </div>
+        <div class="road-filters section-divider">
+            <div class="collapsible-header">
+                <strong>OSM Road Types</strong>
+                <span class="arrow">▼</span>
+            </div>
+            <div class="collapsible-content">
+                <label><input type="checkbox" class="road-type-filter" value="motorway" checked> Motorway</label>
+                <label><input type="checkbox" class="road-type-filter" value="motorway_link" checked> Motorway Link</label>
+                <label><input type="checkbox" class="road-type-filter" value="trunk" checked> Trunk</label>
+                <label><input type="checkbox" class="road-type-filter" value="primary" checked> Primary</label>
+                <label><input type="checkbox" class="road-type-filter" value="secondary" checked> Secondary</label>
+                <label><input type="checkbox" class="road-type-filter" value="tertiary" checked> Tertiary</label>
+                <label><input type="checkbox" class="road-type-filter" value="residential" checked> Residential</label>
+                <label><input type="checkbox" class="road-type-filter" value="unclassified" checked> Unclassified</label>
+                <button id="updateRoadsBtn" class="action-button">Update Roads</button>
+            </div>
+        </div>
+        <div class="date-control section-divider">
+            <strong>Satellite Image Generation:</strong>
+            <div class="date-control-item">
+                <label for="startDate">Start:</label>
+                <input type="date" id="startDate" style="width: 100%;">
+            </div>
+            <div class="date-control-item">
+                <label for="endDate">End:</label>
+                <input type="date" id="endDate" style="width: 100%;">
+            </div>
+            <button id="generateImageBtn" class="action-button" disabled>Generate New Image</button>
+        </div>
+        <div id="imageLayersContainer" class="section-divider">
+            <strong>Image Layers:</strong>
+        </div>
+    </div>
+
+    <script>
+        const map = L.map('map').setView([50.819, -1.088], 13);
+        const baseLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>' });
+        let roadLayer = L.geoJSON(null, { style: { color: "#FF00FF", weight: 3, opacity: 1 } });
+        let osmRoadsCasing = L.geoJSON(null, { style: { color: "#000000", weight: 5, opacity: 0.8 } });
+        let drawnItems = new L.FeatureGroup().addTo(map);
+        let currentBounds = null;
+        let imageLayers = {}; // Object to hold all generated layer sets
+
+        const loader = document.getElementById('loader');
+        const generateImageBtn = document.getElementById('generateImageBtn');
+        const imageLayersContainer = document.getElementById('imageLayersContainer');
+        
+        const today = new Date();
+        const oneMonthAgo = new Date();
+        oneMonthAgo.setMonth(today.getMonth() - 1);
+        document.getElementById('startDate').valueAsDate = oneMonthAgo;
+        document.getElementById('endDate').valueAsDate = today;
+
+        const drawControl = new L.Control.Draw({
+            edit: { featureGroup: drawnItems },
+            draw: { polygon: false, polyline: false, circle: false, marker: false, circlemarker: false, rectangle: { shapeOptions: { color: '#007bff', weight: 4, opacity: 0.7 } } }
+        });
+        map.addControl(drawControl);
+
+        function showLoader(text) { loader.textContent = text; loader.style.display = 'block'; }
+        function hideLoader() { loader.style.display = 'none'; }
+
+        function fetchRoads(bounds) {
+            const checkedTypes = Array.from(document.querySelectorAll('.road-type-filter:checked')).map(el => el.value);
+            if (!document.getElementById('roadToggle').checked || checkedTypes.length === 0) {
+                roadLayer.clearLayers();
+                osmRoadsCasing.clearLayers();
+                return;
+            }
+            const typesString = checkedTypes.join(',');
+            const bbox = `${bounds.getWest()},${bounds.getSouth()},${bounds.getEast()},${bounds.getNorth()}`;
+            roadLayer.clearLayers();
+            osmRoadsCasing.clearLayers();
+            fetch(`/api/get_roads?bbox=${bbox}&types=${typesString}`).then(r => r.json()).then(d => {
+                roadLayer.addData(d);
+                osmRoadsCasing.addData(d);
+            }).catch(e => console.error('Error fetching OSM roads:', e));
+        }
+
+        function generateNewImage() {
+            if (!currentBounds) {
+                alert("Please draw a box on the map first.");
+                return;
+            }
+            showLoader('Downloading Satellite Data...');
+            const bbox = `${currentBounds.getWest()},${currentBounds.getSouth()},${currentBounds.getEast()},${currentBounds.getNorth()}`;
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+            
+            if (!startDate || !endDate) {
+                alert("Please select both a start and end date.");
+                return;
+            }
+
+            fetch(`/api/download_satellite_image?bbox=${bbox}&start_date=${startDate}&end_date=${endDate}`)
+                .then(response => {
+                    if (!response.ok) return response.json().then(err => { throw new Error(err.error || `HTTP error! Status: ${response.status}`); });
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.error) throw new Error(data.error);
+                    return processImageWithBrightness(data.imageDate, 1.0, true); // Process with default brightness
+                })
+                .catch(error => {
+                    console.error('Satellite download error:', error);
+                    alert(`Could not download satellite image: ${error.message}`);
+                    hideLoader();
+                });
+        }
+
+        function processImageWithBrightness(imageDate, brightness, isNew=false) {
+            showLoader('Processing Image...');
+            
+            return fetch(`/api/process_satellite_image?brightness=${brightness}`)
+                .then(response => {
+                    if (!response.ok) return response.json().then(err => { throw new Error(err.error || `HTTP error! Status: ${response.status}`); });
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.error) throw new Error(data.error);
+                    const uniqueId = data.imageUrl.split('_').pop().split('.')[0];
+                    const newSatelliteLayer = L.imageOverlay(data.imageUrl, data.bounds, { opacity: 0.8 });
+                    
+                    imageLayers[uniqueId] = {
+                        satelliteLayer: newSatelliteLayer,
+                        bounds: data.bounds,
+                        imageDate: imageDate,
+                        brightness: brightness,
+                        graphLayer: L.geoJSON(null, { style: { color: "#FFFF00", weight: 3, opacity: 1 } }),
+                        graphCasing: L.geoJSON(null, { style: { color: "#000000", weight: 6, opacity: 0.8 } }),
+                        maskLayer: null
+                    };
+                    
+                    addLayerControlsToUI(uniqueId);
+                    newSatelliteLayer.addTo(map);
+                })
+                .catch(error => {
+                    console.error('Image processing error:', error);
+                    alert(`Could not process satellite image: ${error.message}`);
+                })
+                .finally(() => hideLoader());
+        }
+
+        function reprocessImage(id, newBrightness) {
+            const layerData = imageLayers[id];
+            if (!layerData) return;
+
+            showLoader('Reprocessing Image...');
+            
+            fetch(`/api/process_satellite_image?brightness=${newBrightness}`)
+                .then(response => response.json().then(data => ({ ok: response.ok, data })))
+                .then(({ ok, data }) => {
+                    if (!ok) throw data;
+                    
+                    const newOverlay = L.imageOverlay(data.imageUrl, layerData.bounds, { opacity: layerData.satelliteLayer.options.opacity });
+                    
+                    map.removeLayer(layerData.satelliteLayer); // Remove old
+                    layerData.satelliteLayer = newOverlay; // Update reference
+                    layerData.brightness = newBrightness;
+                    
+                    const card = imageLayersContainer.querySelector(`[data-id="${id}"]`);
+                    if (card && card.querySelector('.toggle-sat').checked) {
+                        layerData.satelliteLayer.addTo(map);
+                    }
+                })
+                .catch(error => console.error('Reprocessing error:', error))
+                .finally(() => hideLoader());
+        }
+
+        function addLayerControlsToUI(id) {
+            const layerData = imageLayers[id];
+            const card = document.createElement('div');
+            card.className = 'image-layer-card';
+            card.dataset.id = id;
+
+            const title = layerData.imageDate;
+            card.innerHTML = `
+                <h4>Image: ${title} <button class="delete-btn" style="float: right;">X</button></h4>
+                <div class="layer-control">
+                    <label class="switch"><input type="checkbox" class="toggle-sat" checked><span class="slider round"></span></label>
+                    <span class="toggle-label">Satellite</span>
+                </div>
+                <div class="layer-control">
+                    <label class="toggle-label">Opacity:</label>
+                    <input type="range" class="opacity-slider" min="0" max="1" step="0.05" value="0.8" style="width: 100px; margin-left: 8px;">
+                </div>
+                 <div class="layer-control">
+                    <label class="toggle-label">Brightness:</label>
+                    <input type="range" class="brightness-slider" min="0.5" max="2.0" step="0.1" value="${layerData.brightness}" style="width: 100px; margin-left: 8px;">
+                </div>
+                <button class="action-button run-detection-btn">Run Detection</button>
+                <div class="layer-control" style="display: none;">
+                    <label class="switch"><input type="checkbox" class="toggle-graph" checked><span class="slider round"></span></label>
+                    <span class="toggle-label">Pred. Graph</span>
+                </div>
+                <div class="layer-control" style="display: none;">
+                    <label class="switch"><input type="checkbox" class="toggle-mask" checked><span class="slider round"></span></label>
+                    <span class="toggle-label">Pred. Mask</span>
+                </div>
+            `;
+            imageLayersContainer.appendChild(card);
+
+            card.querySelector('.toggle-sat').addEventListener('change', (e) => {
+                e.target.checked ? map.addLayer(layerData.satelliteLayer) : map.removeLayer(layerData.satelliteLayer);
+            });
+            card.querySelector('.opacity-slider').addEventListener('input', (e) => {
+                layerData.satelliteLayer.setOpacity(e.target.value);
+            });
+             card.querySelector('.brightness-slider').addEventListener('change', (e) => {
+                reprocessImage(id, e.target.value);
+            });
+            card.querySelector('.run-detection-btn').addEventListener('click', (e) => {
+                fetchPredictedRoads(id);
+                e.target.style.display = 'none';
+            });
+            card.querySelector('.toggle-graph').addEventListener('change', (e) => {
+                if (e.target.checked) {
+                    map.addLayer(layerData.graphCasing);
+                    map.addLayer(layerData.graphLayer);
+                } else {
+                    map.removeLayer(layerData.graphCasing);
+                    map.removeLayer(layerData.graphLayer);
+                }
+            });
+             card.querySelector('.toggle-mask').addEventListener('change', (e) => {
+                if (layerData.maskLayer) e.target.checked ? map.addLayer(layerData.maskLayer) : map.removeLayer(layerData.maskLayer);
+            });
+            card.querySelector('.delete-btn').addEventListener('click', () => {
+                deleteImageLayer(id);
+            });
+        }
+
+        function deleteImageLayer(id) {
+            const layerData = imageLayers[id];
+            if (!layerData) return;
+
+            if (layerData.satelliteLayer) map.removeLayer(layerData.satelliteLayer);
+            if (layerData.graphLayer) map.removeLayer(layerData.graphLayer);
+            if (layerData.graphCasing) map.removeLayer(layerData.graphCasing);
+            if (layerData.maskLayer) map.removeLayer(layerData.maskLayer);
+
+            const card = imageLayersContainer.querySelector(`[data-id="${id}"]`);
+            if (card) card.remove();
+
+            delete imageLayers[id];
+        }
+
+        function fetchPredictedRoads(id) {
+            console.log("1. fetchPredictedRoads called with id:", id);
+
+            const layerData = imageLayers[id];
+            if (!layerData) {
+                console.error("2. CRITICAL: No layerData found for this id. Exiting function.");
+                console.log("Current imageLayers object:", imageLayers);
+                return;
+            }
+            console.log("2. Found layerData:", layerData);
+
+            showLoader('Running Road Prediction Model...');
+            const card = imageLayersContainer.querySelector(`[data-id="${id}"]`);
+            const runBtn = card.querySelector('.run-detection-btn');
+            runBtn.disabled = true;
+
+            const imageUrl = layerData.satelliteLayer._url;
+            if (!imageUrl) {
+                console.error("3. CRITICAL: Could not get imageUrl from the layer. Exiting.");
+                return;
+            }
+            console.log("3. Got image URL:", imageUrl);
+
+            const fetchUrl = `/api/get_predicted_roads?image_url=${encodeURIComponent(imageUrl)}`;
+            console.log("4. Preparing to fetch from URL:", fetchUrl);
+
+            fetch(fetchUrl)
+                .then(response => {
+                    console.log("5. Received response from server.");
+                    return response.json().then(data => ({ ok: response.ok, data }));
+                })
+                .then(({ ok, data }) => {
+                    if (!ok) {
+                        console.error("6. Server responded with an error:", data);
+                        throw data;
+                    }
+                    console.log("6. Successfully got data from server:", data);
+
+                    layerData.graphLayer.addData(data.geojson);
+                    layerData.graphCasing.addData(data.geojson);
+                    layerData.maskLayer = L.imageOverlay(data.maskUrl, layerData.bounds);
+
+                    card.querySelectorAll('.layer-control')[3].style.display = 'flex';
+                    card.querySelectorAll('.layer-control')[4].style.display = 'flex';
+
+                    if (card.querySelector('.toggle-graph').checked) {
+                         map.addLayer(layerData.graphCasing);
+                         map.addLayer(layerData.graphLayer);
+                    }
+                    if (card.querySelector('.toggle-mask').checked) {
+                        layerData.maskLayer.addTo(map);
+                    }
+                })
+                .catch(error => {
+                    console.error('7. CATCH: An error occurred during fetch/processing:', error);
+                    alert(`Could not get predicted roads: ${error.error}\n\nDetails:\n${error.details || 'No details.'}`);
+                    runBtn.style.display = 'block';
+                })
+                .finally(() => {
+                    console.log("8. FINALLY: Hiding loader.");
+                    hideLoader();
+                    runBtn.disabled = false;
+                });
+        }
+        
+        map.on(L.Draw.Event.CREATED, e => {
+            const layer = e.layer;
+            drawnItems.clearLayers().addLayer(layer);
+            currentBounds = layer.getBounds();
+            generateImageBtn.disabled = false;
+            fetchRoads(currentBounds);
+            generateNewImage();
+        });
+        map.on(L.Draw.Event.EDITED, e => e.layers.eachLayer(layer => {
+            currentBounds = layer.getBounds();
+            imageLayersContainer.innerHTML = '<strong>Image Layers:</strong>';
+            Object.values(imageLayers).forEach(l => {
+                if (l.satelliteLayer) map.removeLayer(l.satelliteLayer);
+                if (l.graphLayer) map.removeLayer(l.graphLayer);
+                if (l.graphCasing) map.removeLayer(l.graphCasing);
+                if (l.maskLayer) map.removeLayer(l.maskLayer);
+            });
+            imageLayers = {};
+            fetchRoads(currentBounds);
+            generateNewImage();
+        }));
+        map.on(L.Draw.Event.DELETED, () => {
+             imageLayersContainer.innerHTML = '<strong>Image Layers:</strong>';
+            Object.values(imageLayers).forEach(l => {
+                if (l.satelliteLayer) map.removeLayer(l.satelliteLayer);
+                if (l.graphLayer) map.removeLayer(l.graphLayer);
+                if (l.graphCasing) map.removeLayer(l.graphCasing);
+                if (l.maskLayer) map.removeLayer(l.maskLayer);
+            });
+            imageLayers = {};
+            roadLayer.clearLayers();
+            osmRoadsCasing.clearLayers();
+            currentBounds = null;
+            generateImageBtn.disabled = true;
+        });
+
+        document.getElementById('baseMapToggle').addEventListener('change', e => e.target.checked ? map.addLayer(baseLayer) : map.removeLayer(baseLayer));
+        document.getElementById('roadToggle').addEventListener('change', e => {
+            if(e.target.checked) {
+                map.addLayer(osmRoadsCasing);
+                map.addLayer(roadLayer);
+            } else {
+                map.removeLayer(osmRoadsCasing);
+                map.removeLayer(roadLayer);
+            }
+        });
+        document.getElementById('updateRoadsBtn').addEventListener('click', () => { if (currentBounds) fetchRoads(currentBounds); else alert("Please draw a box on the map first."); });
+        generateImageBtn.addEventListener('click', generateNewImage);
+
+        if (document.getElementById('baseMapToggle').checked) map.addLayer(baseLayer);
+        if (document.getElementById('roadToggle').checked) {
+            map.addLayer(osmRoadsCasing);
+            map.addLayer(roadLayer);
+        }
+
+        // Collapsible OSM Road Types section
+        const collapsibleHeader = document.querySelector('.collapsible-header');
+        collapsibleHeader.addEventListener('click', () => {
+            collapsibleHeader.classList.toggle('active');
+            const content = collapsibleHeader.nextElementSibling;
+            content.style.display = content.style.display === 'block' ? 'none' : 'block';
+        });
+    </script>
+</body>
+</html>
