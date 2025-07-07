@@ -58,11 +58,10 @@ def filter_nodes(node_array, edge_array, keep_node):
     new_edges = new_edges[keep_edge, :]
     return new_nodes, new_edges
 
-
 def edge_list_to_adj_table(edges):
     # This version is the most robust.
     # It correctly handles non-contiguous node indices.
-    if not edges:
+    if edges.size == 0:
         return []
 
     # Find the highest node index to determine the size of the table.
@@ -78,7 +77,6 @@ def edge_list_to_adj_table(edges):
         adj_table[start_node].add(end_node)
 
     return adj_table
-
 
 def trace_segment(start_edge, adj_table):
     segment_nodes = [start_edge[0], start_edge[1]]
@@ -384,25 +382,23 @@ def merge_into_large_graph(
 def convert_to_sat2graph_format(nodes, edges):
     # Converts a graph to the same format as the labels
     # in Sat2Graph.
-    # nodes: [N_node, 2] of the (row, col) image coordinates.
-    # edges: [N_edge, 2] pairs of (start, end) node indices.
-    # Returns: A dict. Keys are (row, col) coordinates of each node. Float inputs will be rounded to int.
-    # Values are lists, each item being a (row, col) of a neighbor node.
-    # Edges are not directed. Input edges will be combined with reverse edges.
     reverse_edges = edges[:, ::-1]
     all_edges = np.concatenate((edges, reverse_edges), axis=0)
 
-    adj_table = edge_list_to_adj_table(nodes, all_edges)
+    # FIX: Call the function with only the 'all_edges' argument.
+    adj_table = edge_list_to_adj_table(all_edges)
 
     int_nodes = [(round(x), round(y)) for x, y in nodes]
 
     result = dict()
     for node_idx, neighbor_indices in enumerate(adj_table):
-        # Notice, we expect the input graph has gone through node-merging so
-        # there shouldn't be two nodes at the same pixel location.
-        key = int_nodes[node_idx]
-        value = [int_nodes[neighbor_idx] for neighbor_idx in neighbor_indices]
-        result[key] = value
+        # This check prevents errors if the graph has isolated nodes
+        # that are not part of any edge.
+        if node_idx < len(int_nodes):
+            key = int_nodes[node_idx]
+            value = [int_nodes[neighbor_idx] for neighbor_idx in neighbor_indices]
+            result[key] = value
+
     return result
 
 

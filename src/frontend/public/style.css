@@ -1,0 +1,31 @@
+html, body, #map { height: 100%; width: 100%; margin: 0; padding: 0; font-family: sans-serif; }
+.title-overlay { position: absolute; top: 10px; left: 50px; z-index: 1000; background: rgba(255, 255, 255, 0.8); padding: 10px; border-radius: 5px; font-size: 1.2em; font-weight: bold; }
+.controls-container { position: absolute; top: 65px; left: 50px; z-index: 1000; background: rgba(255, 255, 255, 0.8); padding: 10px; border-radius: 5px; max-width: 240px; }
+.layer-control, .date-control-item { display: flex; align-items: center; margin-bottom: 10px; }
+.layer-control:last-child { margin-bottom: 0; }
+.layer-control .toggle-label, .date-control-item label { margin-left: 8px; font-size: 1em; }
+.switch { position: relative; display: inline-block; width: 50px; height: 24px; }
+.switch input { opacity: 0; width: 0; height: 0; }
+.slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; }
+.slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background-color: white; transition: .4s; }
+input:checked + .slider { background-color: #007bff; }
+input:focus + .slider { box-shadow: 0 0 1px #007bff; }
+input:checked + .slider:before { transform: translateX(26px); }
+.slider.round { border-radius: 24px; }
+.slider.round:before { border-radius: 50%; }
+#loader { position: absolute; top: 50%; left: 50%; z-index: 2000; transform: translate(-50%, -50%); background: rgba(255, 255, 255, 0.9); padding: 20px; border-radius: 10px; font-size: 1.2em; display: none; }
+.section-divider { margin-top: 15px; border-top: 1px solid #ccc; padding-top: 10px; }
+.road-filters label { display: block; }
+.action-button { width: 100%; padding: 8px; margin-top: 10px; background-color: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; }
+.action-button:hover { background-color: #0056b3; }
+.action-button:disabled { background-color: #cccccc; cursor: not-allowed; }
+.leaflet-popup-content { font-size: 12px; line-height: 1.5; }
+.image-layer-card { border: 1px solid #ddd; border-radius: 4px; padding: 10px; margin-top: 10px; }
+.image-layer-card h4 { margin: 0 0 10px 0; font-size: 1em; }
+.delete-btn { font-size: 0.8em; padding: 2px 5px; background-color: #dc3545; }
+.delete-btn:hover { background-color: #c82333; }
+.collapsible-header { display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none; }
+.collapsible-header .arrow { transition: transform 0.2s ease-in-out; }
+.collapsible-header.active .arrow { transform: rotate(180deg); }
+.collapsible-content { display: none; padding-top: 10px; }
+input[type="color"] { width: 40px; height: 25px; border: 1px solid #ccc; padding: 2px; }

@@ -42,4 +42,5 @@ src/backend/data_processing/south_uk/
 # Generated static files from the backend Flask app
 src/backend/static/satellite_image_*.png
 src/backend/static/predicted_mask_*.png
+src/backend/static/osm_mask_*.png
 src/backend/static/temp_satellite.tif

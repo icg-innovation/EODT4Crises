@@ -66,7 +66,6 @@ def download_sentinel_image(
         .filterDate(start_date, end_date)
         .filterBounds(region)
         .filter(ee.Filter.lt("CLOUDY_PIXEL_PERCENTAGE", 10))
-        .sort("CLOUDY_PIXEL_PERCENTAGE")
     )
 
     collection_size = sentinel_collection.size().getInfo()
@@ -75,7 +74,11 @@ def download_sentinel_image(
             f"No cloud-free Sentinel-2 image found for the date range: {start_date} to {end_date}"
         )
 
-    image = sentinel_collection.sort("CLOUDY_PIXEL_PERCENTAGE").first()
+    # Sort descending by acquisition time so the most recent image comes first
+    sorted_collection = sentinel_collection.sort('system:time_start', False)
+
+    # Get the most recent image
+    image = sorted_collection.first()
 
     image_date_info = image.get("system:time_start").getInfo()
     image_date_str = datetime.utcfromtimestamp(image_date_info / 1000).strftime(
