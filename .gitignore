@@ -1,1 +1,45 @@
+# Python
+# =================================================================
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.so
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+
+# Virtual environments
+.env
+.venv
+env/
+venv/
+
+# IDEs and editors
+.idea/
+.vscode/
+
+# OS-generated files
+.DS_Store
+
+# Project-specific ignores
+# =================================================================
+# Model files (checkpoints, configs) - from your original .gitignore
 model_files/
+
+# Generated output directories from inference and testing
+src/backend/data_processing/save/
+src/backend/data_processing/debug/
+
+# Large datasets that should not be versioned
+src/backend/data_processing/cityscale/
+src/backend/data_processing/spacenet/
+src/backend/data_processing/south_uk/
+
+# Generated static files from the backend Flask app
+src/backend/static/satellite_image_*.png
+src/backend/static/predicted_mask_*.png
+src/backend/static/temp_satellite.tif
