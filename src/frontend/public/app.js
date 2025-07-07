@@ -1,5 +1,4 @@
 document.addEventListener('DOMContentLoaded', () => {
-    // ... (existing map initialization) ...
     const map = L.map('map').setView([50.8056, -1.0875], 13);
     let baseMapLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
@@ -14,86 +13,50 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }));
 
-
-    // -------------------------------------------------------------------------
-    // Global State
-    // -------------------------------------------------------------------------
     const API_BASE_URL = 'http://localhost:4000';
     let drawnRectangle = null;
     let analysisState = {
-        satLayer: null, gtMaskLayer: null, predMaskLayer: null, predGraphLayer: null,
-        imageUrl: null, bounds: null, rawBounds: null,
-        satellite: null // ADDED to store the selected satellite
+        gtMaskLayer: null,
+        pre: { satLayer: null, predMaskLayer: null, predGraphLayer: null, imageUrl: null, bounds: null, rawBounds: null, satellite: null },
+        post: { satLayer: null, predMaskLayer: null, predGraphLayer: null, imageUrl: null, bounds: null, rawBounds: null, satellite: null }
     };
 
-    // -------------------------------------------------------------------------
-    // UI Element References
-    // -------------------------------------------------------------------------
     const loader = document.getElementById('loader');
-    const generateImageBtn = document.getElementById('generateImageBtn');
+    const generateImagesBtn = document.getElementById('generateImagesBtn');
     const generateGTMaskBtn = document.getElementById('generateGTMaskBtn');
-    const runDetectionBtn = document.getElementById('runDetectionBtn');
     const updateRoadsBtn = document.getElementById('updateRoadsBtn');
     const startDateInput = document.getElementById('startDate');
+    const midDateInput = document.getElementById('midDate');
     const endDateInput = document.getElementById('endDate');
-
-    // ADDED: Satellite option UI elements
     const satelliteSelect = document.getElementById('satelliteSelect');
     const sentinel2Options = document.getElementById('sentinel2Options');
     const cloudCoverSlider = document.getElementById('cloudCoverSlider');
     const cloudCoverValue = document.getElementById('cloudCoverValue');
     const sentinel1Options = document.getElementById('sentinel1Options');
     const polarizationSelect = document.getElementById('polarizationSelect');
-    // END ADDED
+    const gtMaskControls = document.getElementById('gtMaskControls'); 
 
-    // ... (existing control containers and other UI refs) ...
-    const satelliteControls = document.getElementById('satelliteControls');
-    const gtMaskControls = document.getElementById('gtMaskControls');
-    const detectionControls = document.getElementById('detectionControls');
-    const imageDateDisplay = document.getElementById('imageDateDisplay');
-    const toggleSat = document.getElementById('toggleSat');
-    const opacitySlider = document.getElementById('opacitySlider');
-    const gtMaskOpacitySlider = document.getElementById('gtMaskOpacitySlider');
-    const predMaskOpacitySlider = document.getElementById('predMaskOpacitySlider');
-    const toggleGtMask = document.getElementById('toggleGtMask');
-    const togglePredMask = document.getElementById('togglePredMask');
-    const togglePredGraph = document.getElementById('togglePredGraph');
-
-
-    // -------------------------------------------------------------------------
-    // Helper Functions & Event Listeners for New UI
-    // -------------------------------------------------------------------------
-
-    // ADDED: Event listener to show/hide satellite options
-    satelliteSelect.addEventListener('change', (e) => {
-        const selected = e.target.value;
-        sentinel1Options.style.display = selected === 'sentinel_1' ? 'block' : 'none';
-        sentinel2Options.style.display = selected === 'sentinel_2' ? 'block' : 'none';
-    });
-
-    // ADDED: Listener to update the cloud cover percentage display
-    cloudCoverSlider.addEventListener('input', (e) => {
-        cloudCoverValue.textContent = e.target.value;
-    });
-
-    // ... (the rest of the helper functions are the same) ...
     const showLoader = (text = 'Processing...') => { loader.textContent = text; loader.style.display = 'flex'; };
     const hideLoader = () => loader.style.display = 'none';
 
     const resetWorkflow = (fullReset = false) => {
-        Object.values(analysisState).forEach(layer => {
-            if (layer && typeof layer.remove === 'function') layer.remove();
-        });
-        analysisState = { satLayer: null, gtMaskLayer: null, predMaskLayer: null, predGraphLayer: null, imageUrl: null, bounds: null, rawBounds: null, satellite: null };
-        satelliteControls.style.display = 'none';
+        if (analysisState.gtMaskLayer) analysisState.gtMaskLayer.remove();
+        analysisState.gtMaskLayer = null;
         gtMaskControls.style.display = 'none';
-        detectionControls.style.display = 'none';
-        imageDateDisplay.style.display = 'none';
         generateGTMaskBtn.disabled = true;
-        runDetectionBtn.disabled = true;
+
+        ['pre', 'post'].forEach(prefix => {
+            Object.values(analysisState[prefix]).forEach(layer => {
+                if (layer && typeof layer.remove === 'function') layer.remove();
+            });
+            analysisState[prefix] = { satLayer: null, predMaskLayer: null, predGraphLayer: null, imageUrl: null, bounds: null, rawBounds: null, satellite: null };
+            document.getElementById(`${prefix}EventControls`).style.display = 'none';
+            document.getElementById(`${prefix}DetectionControls`).style.display = 'none';
+            document.getElementById(`run${prefix.charAt(0).toUpperCase() + prefix.slice(1)}DetectionBtn`).disabled = true;
+        });
 
         if (fullReset) {
-            generateImageBtn.disabled = true;
+            generateImagesBtn.disabled = true;
             if(drawnItems) drawnItems.clearLayers();
             if(osmRoadsLayer) osmRoadsLayer.clearLayers();
             drawnRectangle = null;
@@ -113,18 +76,17 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     
     const today = new Date();
-    const threeMonthsAgo = new Date();
-    threeMonthsAgo.setMonth(today.getMonth() - 3);
+    const oneMonthAgo = new Date(new Date().setMonth(today.getMonth() - 1));
+    const threeMonthsAgo = new Date(new Date().setMonth(today.getMonth() - 3));
     startDateInput.value = threeMonthsAgo.toISOString().split('T')[0];
+    midDateInput.value = oneMonthAgo.toISOString().split('T')[0];
     endDateInput.value = today.toISOString().split('T')[0];
 
-
-    // ... (map drawing and OSM logic is the same) ...
     map.on(L.Draw.Event.CREATED, (event) => {
         resetWorkflow(true);
         drawnRectangle = event.layer;
         drawnItems.addLayer(drawnRectangle);
-        generateImageBtn.disabled = false;
+        generateImagesBtn.disabled = false;
         updateRoads();
         updateRectangleInfo(drawnRectangle);
     });
@@ -136,7 +98,7 @@ document.addEventListener('DOMContentLoaded', () => {
             updateRectangleInfo(layer);
         });
         if (drawnRectangle) {
-            generateImageBtn.disabled = false;
+            generateImagesBtn.disabled = false;
             updateRoads();
         }
     });
@@ -159,70 +121,61 @@ document.addEventListener('DOMContentLoaded', () => {
         } finally { hideLoader(); }
     };
     updateRoadsBtn.addEventListener('click', updateRoads);
-    document.getElementById('roadToggle').addEventListener('change', (e) => map.toggleLayer(osmRoadsLayer, e.target.checked));
 
-
-    // -------------------------------------------------------------------------
-    // STAGE 1: Generate Satellite Image - MODIFIED
-    // -------------------------------------------------------------------------
-    generateImageBtn.addEventListener('click', async () => {
+    generateImagesBtn.addEventListener('click', async () => {
         if (!drawnRectangle) { alert('Please draw a rectangle on the map first.'); return; }
         resetWorkflow();
         
-        // MODIFIED: Gather all options from the UI
         const bbox = drawnRectangle.getBounds().toBBoxString();
         const satellite = satelliteSelect.value;
         
-        const params = new URLSearchParams({
+        const commonParams = {
             bbox: bbox,
-            start_date: startDateInput.value,
-            end_date: endDateInput.value,
-            satellite: satellite
-        });
+            satellite: satellite,
+            cloudy_pixel_percentage: satellite === 'sentinel_2' ? cloudCoverSlider.value : undefined,
+            polarization: satellite === 'sentinel_1' ? polarizationSelect.value : undefined
+        };
 
-        if (satellite === 'sentinel_2') {
-            params.append('cloudy_pixel_percentage', cloudCoverSlider.value);
-        } else if (satellite === 'sentinel_1') {
-            params.append('polarization', polarizationSelect.value);
-        }
-
-        showLoader('Downloading satellite data...');
         try {
-            // Pass all params to the download endpoint
-            const downloadRes = await fetch(`${API_BASE_URL}/api/download_satellite_image?${params.toString()}`);
-            if (!downloadRes.ok) throw new Error((await downloadRes.json()).error);
-            const downloadData = await downloadRes.json();
+            showLoader('Fetching Pre-Event image...');
+            const preImageResult = await fetchAndProcessImage('pre', { ...commonParams, start_date: startDateInput.value, end_date: midDateInput.value, target_date: midDateInput.value });
+            if (preImageResult) {
+                document.getElementById('preEventControls').style.display = 'block';
+                document.getElementById('runPreDetectionBtn').disabled = false;
+            }
 
-            showLoader('Processing image...');
-            // IMPORTANT: Pass the satellite name to the processing endpoint as well
-            const processRes = await fetch(`${API_BASE_URL}/api/process_satellite_image?satellite=${satellite}`);
-            if (!processRes.ok) throw new Error((await processRes.json()).error);
-            const processData = await processRes.json();
-            
-            Object.assign(analysisState, processData);
-            analysisState.satellite = satellite; // Store the satellite in the state
-            analysisState.satLayer = L.imageOverlay(processData.imageUrl, processData.bounds, { opacity: 0.8 }).addTo(map);
-            map.fitBounds(processData.bounds);
+            showLoader('Fetching Post-Event image...');
+            const postImageResult = await fetchAndProcessImage('post', { ...commonParams, start_date: midDateInput.value, end_date: endDateInput.value, target_date: midDateInput.value });
+            if (postImageResult) {
+                document.getElementById('postEventControls').style.display = 'block';
+                document.getElementById('runPostDetectionBtn').disabled = false;
+            }
 
-            imageDateDisplay.innerHTML = `<b>Image Date:</b> ${downloadData.imageDate}`;
-            imageDateDisplay.style.display = 'block';
-            satelliteControls.style.display = 'block';
-            generateGTMaskBtn.disabled = false;
-            runDetectionBtn.disabled = false;
-        } catch (error) { console.error('Error generating image:', error); alert(`Error: ${error.message}`);
-        } finally { hideLoader(); }
+            if (preImageResult || postImageResult) {
+                generateGTMaskBtn.disabled = false; // Enable GT mask button
+                map.fitBounds(analysisState.pre.bounds || analysisState.post.bounds);
+            } else {
+                alert('Could not find any images for the selected dates and area.');
+            }
+
+        } catch (error) {
+            console.error('Error generating images:', error);
+            alert(`Error: ${error.message}`);
+        } finally {
+            hideLoader();
+        }
     });
 
-    // ... (The rest of the file, including STAGE 2, STAGE 3, and Global Listeners, is the same) ...
     generateGTMaskBtn.addEventListener('click', async () => {
-        if (!analysisState.rawBounds) { alert('Generate a satellite image first.'); return; }
+        const imageState = analysisState.pre.rawBounds ? analysisState.pre : analysisState.post;
+        if (!imageState.rawBounds) { alert('Generate a satellite image first.'); return; }
         if (!drawnRectangle) { alert('Error: The drawn rectangle reference was lost. Please draw a new one.'); return; }
     
         showLoader('Generating Ground Truth mask...');
         try {
             const bbox = drawnRectangle.getBounds().toBBoxString();
             const types = getSelectedRoadTypes();
-            const { lat_min, lat_max, lon_min, lon_max } = analysisState.rawBounds;
+            const { lat_min, lat_max, lon_min, lon_max } = imageState.rawBounds;
             const image_bounds = `${lat_min},${lat_max},${lon_min},${lon_max}`;
     
             const url = `${API_BASE_URL}/api/generate_osm_mask?bbox=${bbox}&types=${types}&image_bounds=${image_bounds}`;
@@ -232,7 +185,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await res.json();
             
             if (analysisState.gtMaskLayer) analysisState.gtMaskLayer.remove();
-            analysisState.gtMaskLayer = L.imageOverlay(data.maskUrl, analysisState.bounds, { opacity: 0.7 }).addTo(map);
+            const bounds = imageState.bounds;
+            analysisState.gtMaskLayer = L.imageOverlay(data.maskUrl, bounds, { opacity: 0.7 }).addTo(map);
             gtMaskControls.style.display = 'block';
     
         } catch (error) {
@@ -242,35 +196,72 @@ document.addEventListener('DOMContentLoaded', () => {
             hideLoader();
         }
     });
-    
-    runDetectionBtn.addEventListener('click', async () => {
-        if (!analysisState.imageUrl) { alert('Generate a satellite image first.'); return; }
-        showLoader('Running road detection model...');
+
+    async function fetchAndProcessImage(prefix, params) {
+        const allParams = { ...params, prefix: prefix };
+        const query = new URLSearchParams(Object.entries(allParams).filter(([_, v]) => v != null)).toString();
+
         try {
-            const res = await fetch(`${API_BASE_URL}/api/get_predicted_roads?image_url=${analysisState.imageUrl}`);
+            const downloadRes = await fetch(`${API_BASE_URL}/api/download_satellite_image?${query}`);
+            if (!downloadRes.ok) throw new Error((await downloadRes.json()).error);
+            const downloadData = await downloadRes.json();
+
+            showLoader(`Processing ${prefix}-event image...`);
+            const processRes = await fetch(`${API_BASE_URL}/api/process_satellite_image?satellite=${params.satellite}&prefix=${prefix}`);
+            if (!processRes.ok) throw new Error((await processRes.json()).error);
+            const processData = await processRes.json();
+            
+            Object.assign(analysisState[prefix], processData);
+            analysisState[prefix].satellite = params.satellite;
+            analysisState[prefix].satLayer = L.imageOverlay(processData.imageUrl, processData.bounds, { opacity: 0.8 }).addTo(map);
+
+            document.getElementById(`${prefix}ImageDateDisplay`).innerHTML = `<b>Image Date:</b> ${downloadData.imageDate}`;
+            return true;
+        } catch (error) {
+            console.error(`Error for ${prefix}-event image:`, error);
+            alert(`Could not process ${prefix}-event image: ${error.message}`);
+            return false;
+        }
+    }
+
+    async function runDetection(prefix) {
+        if (!analysisState[prefix].imageUrl) { alert(`Generate the ${prefix}-event satellite image first.`); return; }
+        showLoader(`Running ${prefix}-event detection...`);
+        try {
+            const res = await fetch(`${API_BASE_URL}/api/get_predicted_roads?image_url=${analysisState[prefix].imageUrl}&prefix=${prefix}`);
             if (!res.ok) throw new Error((await res.json()).error);
             const data = await res.json();
 
-            if (analysisState.predGraphLayer) analysisState.predGraphLayer.remove();
-            if (analysisState.predMaskLayer) analysisState.predMaskLayer.remove();
+            if (analysisState[prefix].predGraphLayer) analysisState[prefix].predGraphLayer.remove();
+            if (analysisState[prefix].predMaskLayer) analysisState[prefix].predMaskLayer.remove();
             
-            analysisState.predGraphLayer = L.geoJSON(data.geojson, { style: () => ({ color: '#00ffff', weight: 3 }) }).addTo(map);
-            analysisState.predMaskLayer = L.imageOverlay(data.maskUrl, analysisState.bounds, { opacity: 0.7 }).addTo(map);
-            detectionControls.style.display = 'block';
-        } catch (error) { console.error("Detection Error:", error); alert(`Detection failed: ${error.message}`);
+            analysisState[prefix].predGraphLayer = L.geoJSON(data.geojson, { style: () => ({ color: prefix === 'pre' ? '#00ffff' : '#ff00ff', weight: 3 }) }).addTo(map);
+            analysisState[prefix].predMaskLayer = L.imageOverlay(data.maskUrl, analysisState[prefix].bounds, { opacity: 0.7 }).addTo(map);
+            document.getElementById(`${prefix}DetectionControls`).style.display = 'block';
+        } catch (error) { console.error(`${prefix} Detection Error:`, error); alert(`Detection failed: ${error.message}`);
         } finally { hideLoader(); }
-    });
+    }
+
+    document.getElementById('runPreDetectionBtn').addEventListener('click', () => runDetection('pre'));
+    document.getElementById('runPostDetectionBtn').addEventListener('click', () => runDetection('post'));
 
     document.getElementById('baseMapToggle').addEventListener('change', (e) => map.toggleLayer(baseMapLayer, e.target.checked));
-    opacitySlider.addEventListener('input', (e) => { if (analysisState.satLayer) analysisState.satLayer.setOpacity(e.target.value); });
-    gtMaskOpacitySlider.addEventListener('input', (e) => { if (analysisState.gtMaskLayer) analysisState.gtMaskLayer.setOpacity(e.target.value); });
-    predMaskOpacitySlider.addEventListener('input', (e) => { if (analysisState.predMaskLayer) analysisState.predMaskLayer.setOpacity(e.target.value); });
+    document.getElementById('roadToggle').addEventListener('change', (e) => map.toggleLayer(osmRoadsLayer, e.target.checked));
     
+    document.getElementById('toggleGtMask').addEventListener('change', (e) => map.toggleLayer(analysisState.gtMaskLayer, e.target.checked));
+    document.getElementById('gtMaskOpacitySlider').addEventListener('input', (e) => { if (analysisState.gtMaskLayer) analysisState.gtMaskLayer.setOpacity(e.target.value); });
+
     L.Map.prototype.toggleLayer = (layer, show) => { if (layer) { if (show) map.addLayer(layer); else map.removeLayer(layer); } };
-    toggleSat.addEventListener('change', (e) => map.toggleLayer(analysisState.satLayer, e.target.checked));
-    toggleGtMask.addEventListener('change', (e) => map.toggleLayer(analysisState.gtMaskLayer, e.target.checked));
-    togglePredMask.addEventListener('change', (e) => map.toggleLayer(analysisState.predMaskLayer, e.target.checked));
-    togglePredGraph.addEventListener('change', (e) => map.toggleLayer(analysisState.predGraphLayer, e.target.checked));
+    
+    ['pre', 'post'].forEach(prefix => {
+        document.getElementById(`toggle${prefix.charAt(0).toUpperCase() + prefix.slice(1)}Sat`).addEventListener('change', (e) => map.toggleLayer(analysisState[prefix].satLayer, e.target.checked));
+        document.getElementById(`${prefix}OpacitySlider`).addEventListener('input', (e) => { if (analysisState[prefix].satLayer) analysisState[prefix].satLayer.setOpacity(e.target.value); });
+        
+        document.getElementById(`toggle${prefix.charAt(0).toUpperCase() + prefix.slice(1)}PredMask`).addEventListener('change', (e) => map.toggleLayer(analysisState[prefix].predMaskLayer, e.target.checked));
+        document.getElementById(`${prefix}PredMaskOpacitySlider`).addEventListener('input', (e) => { if (analysisState[prefix].predMaskLayer) analysisState[prefix].predMaskLayer.setOpacity(e.target.value); });
+        
+        document.getElementById(`toggle${prefix.charAt(0).toUpperCase() + prefix.slice(1)}PredGraph`).addEventListener('change', (e) => map.toggleLayer(analysisState[prefix].predGraphLayer, e.target.checked));
+    });
 
     document.querySelectorAll('.collapsible-header').forEach(header => {
         header.addEventListener('click', () => {
@@ -282,4 +273,13 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
+    satelliteSelect.addEventListener('change', (e) => {
+        const selected = e.target.value;
+        sentinel1Options.style.display = selected === 'sentinel_1' ? 'block' : 'none';
+        sentinel2Options.style.display = selected === 'sentinel_2' ? 'block' : 'none';
+    });
+
+    cloudCoverSlider.addEventListener('input', (e) => {
+        cloudCoverValue.textContent = e.target.value;
+    });
 });

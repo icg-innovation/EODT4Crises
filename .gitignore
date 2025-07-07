@@ -43,4 +43,6 @@ src/backend/data_processing/south_uk/
 src/backend/static/satellite_image_*.png
 src/backend/static/predicted_mask_*.png
 src/backend/static/osm_mask_*.png
-src/backend/static/temp_satellite.tif
+src/backend/static/temp_satellite_*.tif
+src/backend/static/current_prefix.txt
+src/backend/static/reference_bounds.json

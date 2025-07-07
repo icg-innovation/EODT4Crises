@@ -29,3 +29,7 @@ input:checked + .slider:before { transform: translateX(26px); }
 .collapsible-header.active .arrow { transform: rotate(180deg); }
 .collapsible-content { display: none; padding-top: 10px; }
 input[type="color"] { width: 40px; height: 25px; border: 1px solid #ccc; padding: 2px; }
+.event-controls { border: 1px solid #ccc; border-radius: 4px; padding: 10px; margin-top: 15px; }
+.event-controls h4 { margin-top: 0; }
+.image-date-display { font-size: 0.9em; margin-bottom: 10px; }
+.opacity-slider { width: 100px; margin-left: 8px; }
