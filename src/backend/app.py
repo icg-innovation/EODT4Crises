@@ -19,6 +19,7 @@ from data_processing.gee_downloader import (
 )
 from pyproj import Transformer
 import logging
+
 # New import for mask creation
 from PIL import Image, ImageDraw
 
@@ -52,9 +53,7 @@ if os.path.exists(backend_static_folder):
         os.path.join(backend_static_folder, "predicted_mask_*.png")
     )
     # Add new mask files to the cleanup
-    files_to_delete += glob.glob(
-        os.path.join(backend_static_folder, "osm_mask_*.png")
-    )
+    files_to_delete += glob.glob(os.path.join(backend_static_folder, "osm_mask_*.png"))
 
     for f_path in files_to_delete:
         try:
@@ -69,9 +68,7 @@ else:
 # GEE Authentication
 # -----------------------------------------------------------------------------
 try:
-    authenticate_earth_engine(
-        "uksa-training-course-materials"
-    )
+    authenticate_earth_engine("uksa-training-course-materials")
 except Exception as e:
     print(f"Could not initialize Google Earth Engine: {e}")
 
@@ -124,14 +121,15 @@ def overpass_to_geojson(overpass_json):
                 )
     return {"type": "FeatureCollection", "features": features}
 
+
 def create_osm_mask(geojson_data, image_bounds, image_size=(512, 512), line_width=3):
     """
     Rasterizes GeoJSON LineString data onto a black and white mask.
     """
     height, width = image_size
     lat_min, lat_max, lon_min, lon_max = image_bounds
-    
-    mask_image = Image.new('L', (width, height), 0)
+
+    mask_image = Image.new("L", (width, height), 0)
     draw = ImageDraw.Draw(mask_image)
 
     def geo_to_pixel(lon, lat):
@@ -141,17 +139,18 @@ def create_osm_mask(geojson_data, image_bounds, image_size=(512, 512), line_widt
         y = (lat_max - lat) * (height / (lat_max - lat_min))
         return int(x), int(y)
 
-    for feature in geojson_data.get('features', []):
-        if feature['geometry']['type'] == 'LineString':
-            coordinates = feature['geometry']['coordinates']
+    for feature in geojson_data.get("features", []):
+        if feature["geometry"]["type"] == "LineString":
+            coordinates = feature["geometry"]["coordinates"]
             pixel_points = []
             for lon, lat in coordinates:
                 pixel_points.append(geo_to_pixel(lon, lat))
-            
+
             if len(pixel_points) >= 2:
                 draw.line(pixel_points, fill=255, width=line_width)
 
     return mask_image
+
 
 def graph_to_geojson(adjacency_list, geotiff_path):
     features = []
@@ -317,30 +316,35 @@ def process_satellite_image():
         ]
         image_url = f"/static/{png_filename}"
         # MODIFIED to return rawBounds for mask alignment
-        return jsonify({
-            "imageUrl": image_url, 
-            "bounds": leaflet_bounds,
-            "rawBounds": {
-                "lat_min": bounds_4326[0],
-                "lat_max": bounds_4326[1],
-                "lon_min": bounds_4326[2],
-                "lon_max": bounds_4326[3]
+        return jsonify(
+            {
+                "imageUrl": image_url,
+                "bounds": leaflet_bounds,
+                "rawBounds": {
+                    "lat_min": bounds_4326[0],
+                    "lat_max": bounds_4326[1],
+                    "lon_min": bounds_4326[2],
+                    "lon_max": bounds_4326[3],
+                },
             }
-        })
+        )
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
 
 # NEW ENDPOINT to generate the ground truth mask
 @app.route("/api/generate_osm_mask", methods=["GET"])
 def generate_osm_mask():
     bbox = request.args.get("bbox")
-    image_bounds_str = request.args.get("image_bounds") 
+    image_bounds_str = request.args.get("image_bounds")
     types_str = request.args.get("types")
-    
+
     logging.info(f"Received request for OSM mask with image_bounds: {image_bounds_str}")
 
     if not all([bbox, image_bounds_str, types_str]):
-        return jsonify({"error": "Missing 'bbox', 'image_bounds', or 'types' parameter"}), 400
+        return jsonify(
+            {"error": "Missing 'bbox', 'image_bounds', or 'types' parameter"}
+        ), 400
 
     try:
         min_lon, min_lat, max_lon, max_lat = [float(coord) for coord in bbox.split(",")]
@@ -348,33 +352,38 @@ def generate_osm_mask():
         overpass_types = "|".join(types_str.split(","))
         overpass_url = "https://overpass-api.de/api/interpreter"
         overpass_query = f"""[out:json][timeout:25];(way["highway"~"^({overpass_types})$"]({overpass_bbox}););out body;>;out skel qt;"""
-        
+
         response = requests.get(overpass_url, params={"data": overpass_query})
         response.raise_for_status()
         osm_json = response.json()
         osm_geojson = overpass_to_geojson(osm_json)
-        
-        image_bounds = [float(b) for b in image_bounds_str.split(',')]
-        
-        osm_mask_image = create_osm_mask(osm_geojson, image_bounds, image_size=(512, 512))
-        
+
+        image_bounds = [float(b) for b in image_bounds_str.split(",")]
+
+        osm_mask_image = create_osm_mask(
+            osm_geojson, image_bounds, image_size=(512, 512)
+        )
+
         unique_id = int(time.time())
         mask_filename = f"osm_mask_{unique_id}.png"
         mask_path = os.path.join(backend_static_folder, mask_filename)
         osm_mask_image.save(mask_path)
-        
+
         logging.info(f"Saved OSM ground truth mask to {mask_path}")
-        
+
         return jsonify({"maskUrl": f"/static/{mask_filename}"})
 
     except requests.exceptions.RequestException as e:
         return jsonify({"error": f"Failed to fetch data from Overpass API: {e}"}), 502
     except (ValueError, IndexError, TypeError) as e:
         logging.error(f"Error processing request for OSM mask: {e}")
-        return jsonify({"error": "Invalid parameter format or error during mask creation."}), 400
+        return jsonify(
+            {"error": "Invalid parameter format or error during mask creation."}
+        ), 400
     except Exception as e:
         logging.error(f"An unexpected error occurred during OSM mask generation: {e}")
         return jsonify({"error": str(e)}), 500
+
 
 @app.route("/api/get_predicted_roads", methods=["GET"])
 def get_predicted_roads():

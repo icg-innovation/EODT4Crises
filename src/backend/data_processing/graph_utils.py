@@ -58,6 +58,7 @@ def filter_nodes(node_array, edge_array, keep_node):
     new_edges = new_edges[keep_edge, :]
     return new_nodes, new_edges
 
+
 def edge_list_to_adj_table(edges):
     # This version is the most robust.
     # It correctly handles non-contiguous node indices.
@@ -77,6 +78,7 @@ def edge_list_to_adj_table(edges):
         adj_table[start_node].add(end_node)
 
     return adj_table
+
 
 def trace_segment(start_edge, adj_table):
     segment_nodes = [start_edge[0], start_edge[1]]
@@ -725,8 +727,10 @@ class TestGraphUtils(unittest.TestCase):
             (1, 2): [(3, 4), (5, 6)],
             (3, 4): [(1, 2), (5, 6)],
         }
+
         def rc2xy(x):
             return x[:, ::-1]
+
         g = igraph_from_adj_dict(adj, rc2xy)
         self.assertEqual(len(g.es), 3)
         self.assertEqual(len(g.vs), 3)
@@ -745,8 +749,10 @@ class TestGraphUtils(unittest.TestCase):
                 (20, 1),
             ],
         }
+
         def rc2xy(x):
             return x[:, ::-1]
+
         g = igraph_from_adj_dict(adj, rc2xy)
         pts = find_crossover_points(g)
         self.assertEqual(len(pts), 1)
@@ -763,8 +769,10 @@ class TestGraphUtils(unittest.TestCase):
                 (20, 0),
             ],
         }
+
         def rc2xy(x):
             return x[:, ::-1]
+
         g = igraph_from_adj_dict(adj, rc2xy)
         g1 = subdivide_graph(g, resolution=2.0)
         self.assertEqual(len(g1.vs["point"]), 11)

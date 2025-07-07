@@ -62,7 +62,7 @@ def download_sentinel_image(
     }
 
     sentinel_collection = (
-        ee.ImageCollection(satellite_collection['sentinel_2'])
+        ee.ImageCollection(satellite_collection["sentinel_2"])
         .filterDate(start_date, end_date)
         .filterBounds(region)
         .filter(ee.Filter.lt("CLOUDY_PIXEL_PERCENTAGE", 10))
@@ -75,7 +75,7 @@ def download_sentinel_image(
         )
 
     # Sort descending by acquisition time so the most recent image comes first
-    sorted_collection = sentinel_collection.sort('system:time_start', False)
+    sorted_collection = sentinel_collection.sort("system:time_start", False)
 
     # Get the most recent image
     image = sorted_collection.first()

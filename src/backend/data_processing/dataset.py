@@ -289,6 +289,7 @@ def test_graph_label_generator():
         gt_graph = pickle.load(
             open("./cityscale/20cities/region_166_refine_gt_graph.p", "rb")
         )
+
         def coord_transform(v):
             return v[:, ::-1]
     elif dataset == "spacenet":
@@ -301,6 +302,7 @@ def test_graph_label_generator():
 
         def coord_transform(v):
             return np.stack([v[:, 1], 400 - v[:, 0]], axis=1)
+
         # coord_transform = lambda v : v[:, ::-1]
     rgb = read_rgb_img(rgb_path)
     config = addict.Dict()
