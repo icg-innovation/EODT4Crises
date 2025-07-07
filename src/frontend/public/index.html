@@ -252,7 +252,8 @@
                 </div>
                  <div class="layer-control">
                     <label class="toggle-label">Brightness:</label>
-                    <input type="range" class="brightness-slider" min="0.5" max="2.0" step="0.1" value="${layerData.brightness}" style="width: 100px; margin-left: 8px;">
+                    <input type="range" class="brightness-slider" min="0.5" max="2.0" step="0.1" value="${layerData.brightness}" style="width: 85px; margin-left: 8px;">
+                    <span class="brightness-value" style="margin-left: 5px; min-width: 30px; text-align: left;">${parseFloat(layerData.brightness).toFixed(1)}</span>
                 </div>
                 <button class="action-button run-detection-btn">Run Detection</button>
                 <div class="layer-control" style="display: none;">
@@ -272,9 +273,18 @@
             card.querySelector('.opacity-slider').addEventListener('input', (e) => {
                 layerData.satelliteLayer.setOpacity(e.target.value);
             });
-             card.querySelector('.brightness-slider').addEventListener('change', (e) => {
+
+            const brightnessSlider = card.querySelector('.brightness-slider');
+            const brightnessValueSpan = card.querySelector('.brightness-value');
+            
+            brightnessSlider.addEventListener('input', e => {
+                brightnessValueSpan.textContent = parseFloat(e.target.value).toFixed(1);
+            });
+
+            brightnessSlider.addEventListener('change', e => {
                 reprocessImage(id, e.target.value);
             });
+
             card.querySelector('.run-detection-btn').addEventListener('click', (e) => {
                 fetchPredictedRoads(id);
                 e.target.style.display = 'none';
