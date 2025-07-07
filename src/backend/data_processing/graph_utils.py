@@ -60,35 +60,23 @@ def filter_nodes(node_array, edge_array, keep_node):
 
 
 def edge_list_to_adj_table(edges):
-    # edges: [[src_idx, dst_idx], ...] node indices must start from 0 and
-    # be continuous.
-    # Returns:
-    # adj_table: list of sets. len(adj_table) = num_nodes, adj_table[i]
-    # = neighbor node indices of node i. Empty if no neighbors.
-    nodes = set()
-    for edge in edges:
-        start_idx, end_idx = edge[0], edge[1]
-        nodes.add(start_idx)
-        nodes.add(end_idx)
-    node_num = len(nodes)
-    adj_table = [set() for i in range(node_num)]
-    for edge in edges:
-        start_idx, end_idx = edge[0], edge[1]
-        adj_table[start_idx].add(end_idx)
-    return adj_table
+    # This version is the most robust.
+    # It correctly handles non-contiguous node indices.
+    if not edges:
+        return []
 
+    # Find the highest node index to determine the size of the table.
+    max_node = 0
+    for start_node, end_node in edges:
+        max_node = max(max_node, start_node, end_node)
 
-def edge_list_to_adj_table(nodes, edges):
-    # edges: [[src_idx, dst_idx], ...] node indices must start from 0 and
-    # be continuous.
-    # Returns:
-    # adj_table: list of sets. len(adj_table) = num_nodes, adj_table[i]
-    # = neighbor node indices of node i. Empty if no neighbors.
-    node_num = len(nodes)
-    adj_table = [set() for i in range(node_num)]
-    for edge in edges:
-        start_idx, end_idx = edge[0], edge[1]
-        adj_table[start_idx].add(end_idx)
+    # Create an adjacency table of the correct size.
+    # The +1 is because indices are 0-based (e.g., max_node 5 needs a list of size 6).
+    adj_table = [set() for _ in range(max_node + 1)]
+
+    for start_node, end_node in edges:
+        adj_table[start_node].add(end_node)
+
     return adj_table
 
 
@@ -491,11 +479,11 @@ def igraph_from_adj_dict(graph, coord_transform):
 
 def get_line_bbox(line):
     (x0, y0), (x1, y1) = line
-    l = min(x0, x1) - 1
-    b = min(y0, y1) - 1
-    r = max(x0, x1) + 1
-    t = max(y0, y1) + 1
-    return (l, b, r, t)
+    left = min(x0, x1) - 1
+    bottom = min(y0, y1) - 1
+    right = max(x0, x1) + 1
+    top = max(y0, y1) + 1
+    return (left, bottom, right, top)
 
 
 def find_intersection(segment1, segment2):

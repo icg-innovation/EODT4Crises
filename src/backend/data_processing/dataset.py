@@ -289,7 +289,8 @@ def test_graph_label_generator():
         gt_graph = pickle.load(
             open("./cityscale/20cities/region_166_refine_gt_graph.p", "rb")
         )
-        coord_transform = lambda v: v[:, ::-1]
+        def coord_transform(v):
+            return v[:, ::-1]
     elif dataset == "spacenet":
         rgb_path = "spacenet/RGB_1.0_meter/AOI_2_Vegas_210__rgb.png"
         # Load GT Graph
@@ -298,7 +299,8 @@ def test_graph_label_generator():
         )
         # gt_graph = pickle.load(open(f"spacenet/RGB_1.0_meter/AOI_4_Shanghai_1061__gt_graph_dense_spacenet.p",'rb'))
 
-        coord_transform = lambda v: np.stack([v[:, 1], 400 - v[:, 0]], axis=1)
+        def coord_transform(v):
+            return np.stack([v[:, 1], 400 - v[:, 0]], axis=1)
         # coord_transform = lambda v : v[:, ::-1]
     rgb = read_rgb_img(rgb_path)
     config = addict.Dict()
