@@ -1,7 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
-    // -------------------------------------------------------------------------
-    // Map Initialization
-    // -------------------------------------------------------------------------
+    // ... (existing map initialization) ...
     const map = L.map('map').setView([50.8056, -1.0875], 13);
     let baseMapLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
@@ -16,6 +14,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }));
 
+
     // -------------------------------------------------------------------------
     // Global State
     // -------------------------------------------------------------------------
@@ -23,7 +22,8 @@ document.addEventListener('DOMContentLoaded', () => {
     let drawnRectangle = null;
     let analysisState = {
         satLayer: null, gtMaskLayer: null, predMaskLayer: null, predGraphLayer: null,
-        imageUrl: null, bounds: null, rawBounds: null
+        imageUrl: null, bounds: null, rawBounds: null,
+        satellite: null // ADDED to store the selected satellite
     };
 
     // -------------------------------------------------------------------------
@@ -37,13 +37,20 @@ document.addEventListener('DOMContentLoaded', () => {
     const startDateInput = document.getElementById('startDate');
     const endDateInput = document.getElementById('endDate');
 
-    // Control Containers & Displays
+    // ADDED: Satellite option UI elements
+    const satelliteSelect = document.getElementById('satelliteSelect');
+    const sentinel2Options = document.getElementById('sentinel2Options');
+    const cloudCoverSlider = document.getElementById('cloudCoverSlider');
+    const cloudCoverValue = document.getElementById('cloudCoverValue');
+    const sentinel1Options = document.getElementById('sentinel1Options');
+    const polarizationSelect = document.getElementById('polarizationSelect');
+    // END ADDED
+
+    // ... (existing control containers and other UI refs) ...
     const satelliteControls = document.getElementById('satelliteControls');
     const gtMaskControls = document.getElementById('gtMaskControls');
     const detectionControls = document.getElementById('detectionControls');
     const imageDateDisplay = document.getElementById('imageDateDisplay');
-
-    // Toggles and Sliders
     const toggleSat = document.getElementById('toggleSat');
     const opacitySlider = document.getElementById('opacitySlider');
     const gtMaskOpacitySlider = document.getElementById('gtMaskOpacitySlider');
@@ -52,9 +59,24 @@ document.addEventListener('DOMContentLoaded', () => {
     const togglePredMask = document.getElementById('togglePredMask');
     const togglePredGraph = document.getElementById('togglePredGraph');
 
+
     // -------------------------------------------------------------------------
-    // Helper Functions
+    // Helper Functions & Event Listeners for New UI
     // -------------------------------------------------------------------------
+
+    // ADDED: Event listener to show/hide satellite options
+    satelliteSelect.addEventListener('change', (e) => {
+        const selected = e.target.value;
+        sentinel1Options.style.display = selected === 'sentinel_1' ? 'block' : 'none';
+        sentinel2Options.style.display = selected === 'sentinel_2' ? 'block' : 'none';
+    });
+
+    // ADDED: Listener to update the cloud cover percentage display
+    cloudCoverSlider.addEventListener('input', (e) => {
+        cloudCoverValue.textContent = e.target.value;
+    });
+
+    // ... (the rest of the helper functions are the same) ...
     const showLoader = (text = 'Processing...') => { loader.textContent = text; loader.style.display = 'flex'; };
     const hideLoader = () => loader.style.display = 'none';
 
@@ -62,7 +84,7 @@ document.addEventListener('DOMContentLoaded', () => {
         Object.values(analysisState).forEach(layer => {
             if (layer && typeof layer.remove === 'function') layer.remove();
         });
-        analysisState = { satLayer: null, gtMaskLayer: null, predMaskLayer: null, predGraphLayer: null, imageUrl: null, bounds: null, rawBounds: null };
+        analysisState = { satLayer: null, gtMaskLayer: null, predMaskLayer: null, predGraphLayer: null, imageUrl: null, bounds: null, rawBounds: null, satellite: null };
         satelliteControls.style.display = 'none';
         gtMaskControls.style.display = 'none';
         detectionControls.style.display = 'none';
@@ -96,9 +118,8 @@ document.addEventListener('DOMContentLoaded', () => {
     startDateInput.value = threeMonthsAgo.toISOString().split('T')[0];
     endDateInput.value = today.toISOString().split('T')[0];
 
-    // -------------------------------------------------------------------------
-    // Map Drawing Events
-    // -------------------------------------------------------------------------
+
+    // ... (map drawing and OSM logic is the same) ...
     map.on(L.Draw.Event.CREATED, (event) => {
         resetWorkflow(true);
         drawnRectangle = event.layer;
@@ -122,9 +143,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     map.on(L.Draw.Event.DELETED, () => resetWorkflow(true));
 
-    // -------------------------------------------------------------------------
-    // OSM Road Layer Logic
-    // -------------------------------------------------------------------------
     let osmRoadsLayer = L.geoJSON(null, { style: () => ({ color: '#ff0000', weight: 2.5, opacity: 0.8 }) }).addTo(map);
     const getSelectedRoadTypes = () => Array.from(document.querySelectorAll('.road-type-filter:checked')).map(cb => cb.value).join(',');
     const updateRoads = async () => {
@@ -143,25 +161,46 @@ document.addEventListener('DOMContentLoaded', () => {
     updateRoadsBtn.addEventListener('click', updateRoads);
     document.getElementById('roadToggle').addEventListener('change', (e) => map.toggleLayer(osmRoadsLayer, e.target.checked));
 
+
     // -------------------------------------------------------------------------
-    // STAGE 1: Generate Satellite Image
+    // STAGE 1: Generate Satellite Image - MODIFIED
     // -------------------------------------------------------------------------
     generateImageBtn.addEventListener('click', async () => {
         if (!drawnRectangle) { alert('Please draw a rectangle on the map first.'); return; }
         resetWorkflow();
+        
+        // MODIFIED: Gather all options from the UI
         const bbox = drawnRectangle.getBounds().toBBoxString();
+        const satellite = satelliteSelect.value;
+        
+        const params = new URLSearchParams({
+            bbox: bbox,
+            start_date: startDateInput.value,
+            end_date: endDateInput.value,
+            satellite: satellite
+        });
+
+        if (satellite === 'sentinel_2') {
+            params.append('cloudy_pixel_percentage', cloudCoverSlider.value);
+        } else if (satellite === 'sentinel_1') {
+            params.append('polarization', polarizationSelect.value);
+        }
+
         showLoader('Downloading satellite data...');
         try {
-            const downloadRes = await fetch(`${API_BASE_URL}/api/download_satellite_image?bbox=${bbox}&start_date=${startDateInput.value}&end_date=${endDateInput.value}`);
+            // Pass all params to the download endpoint
+            const downloadRes = await fetch(`${API_BASE_URL}/api/download_satellite_image?${params.toString()}`);
             if (!downloadRes.ok) throw new Error((await downloadRes.json()).error);
             const downloadData = await downloadRes.json();
 
             showLoader('Processing image...');
-            const processRes = await fetch(`${API_BASE_URL}/api/process_satellite_image`);
+            // IMPORTANT: Pass the satellite name to the processing endpoint as well
+            const processRes = await fetch(`${API_BASE_URL}/api/process_satellite_image?satellite=${satellite}`);
             if (!processRes.ok) throw new Error((await processRes.json()).error);
             const processData = await processRes.json();
             
             Object.assign(analysisState, processData);
+            analysisState.satellite = satellite; // Store the satellite in the state
             analysisState.satLayer = L.imageOverlay(processData.imageUrl, processData.bounds, { opacity: 0.8 }).addTo(map);
             map.fitBounds(processData.bounds);
 
@@ -174,26 +213,24 @@ document.addEventListener('DOMContentLoaded', () => {
         } finally { hideLoader(); }
     });
 
-    // -------------------------------------------------------------------------
-    // STAGE 2: Generate GT Mask
-    // -------------------------------------------------------------------------
+    // ... (The rest of the file, including STAGE 2, STAGE 3, and Global Listeners, is the same) ...
     generateGTMaskBtn.addEventListener('click', async () => {
         if (!analysisState.rawBounds) { alert('Generate a satellite image first.'); return; }
         if (!drawnRectangle) { alert('Error: The drawn rectangle reference was lost. Please draw a new one.'); return; }
-
+    
         showLoader('Generating Ground Truth mask...');
         try {
             const bbox = drawnRectangle.getBounds().toBBoxString();
             const types = getSelectedRoadTypes();
             const { lat_min, lat_max, lon_min, lon_max } = analysisState.rawBounds;
             const image_bounds = `${lat_min},${lat_max},${lon_min},${lon_max}`;
-
+    
             const url = `${API_BASE_URL}/api/generate_osm_mask?bbox=${bbox}&types=${types}&image_bounds=${image_bounds}`;
-
+            
             const res = await fetch(url);
             if (!res.ok) throw new Error((await res.json()).error);
             const data = await res.json();
-
+            
             if (analysisState.gtMaskLayer) analysisState.gtMaskLayer.remove();
             analysisState.gtMaskLayer = L.imageOverlay(data.maskUrl, analysisState.bounds, { opacity: 0.7 }).addTo(map);
             gtMaskControls.style.display = 'block';
@@ -206,9 +243,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
     
-    // -------------------------------------------------------------------------
-    // STAGE 3: Run Detection
-    // -------------------------------------------------------------------------
     runDetectionBtn.addEventListener('click', async () => {
         if (!analysisState.imageUrl) { alert('Generate a satellite image first.'); return; }
         showLoader('Running road detection model...');
@@ -227,9 +261,6 @@ document.addEventListener('DOMContentLoaded', () => {
         } finally { hideLoader(); }
     });
 
-    // -------------------------------------------------------------------------
-    // Global Control Listeners
-    // -------------------------------------------------------------------------
     document.getElementById('baseMapToggle').addEventListener('change', (e) => map.toggleLayer(baseMapLayer, e.target.checked));
     opacitySlider.addEventListener('input', (e) => { if (analysisState.satLayer) analysisState.satLayer.setOpacity(e.target.value); });
     gtMaskOpacitySlider.addEventListener('input', (e) => { if (analysisState.gtMaskLayer) analysisState.gtMaskLayer.setOpacity(e.target.value); });
@@ -250,4 +281,5 @@ document.addEventListener('DOMContentLoaded', () => {
             arrow.textContent = isActive ? '▼' : '▲';
         });
     });
+
 });

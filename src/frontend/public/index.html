@@ -24,6 +24,7 @@
             <span class="toggle-label">OSM Roads</span>
         </div>
 
+
         <div class="road-filters section-divider">
             <div class="collapsible-header"><strong>OSM Road Types</strong><span class="arrow">▼</span></div>
             <div class="collapsible-content">
@@ -43,7 +44,27 @@
             <strong>Analysis Workflow:</strong>
             
             <div class="workflow-stage">
-                <div class="date-control-item">
+                <div class="satellite-selection">
+                    <label for="satelliteSelect"><strong>Satellite:</strong></label>
+                    <select id="satelliteSelect" style="width: 100%; padding: 5px; margin-top: 5px;">
+                        <option value="sentinel_2" selected>Sentinel-2</option>
+                        <option value="sentinel_1">Sentinel-1</option>
+                    </select>
+                </div>
+
+                <div id="sentinel2Options" class="satellite-options" style="margin-top: 10px;">
+                    <label for="cloudCoverSlider">Cloud Cover (%): <span id="cloudCoverValue">10</span>%</label>
+                    <input type="range" id="cloudCoverSlider" min="0" max="100" value="10" style="width: 100%;">
+                </div>
+
+                <div id="sentinel1Options" class="satellite-options" style="display: none; margin-top: 10px;">
+                    <label for="polarizationSelect">Polarization:</label>
+                    <select id="polarizationSelect" style="width: 100%; padding: 5px; margin-top: 5px;">
+                        <option value="VV" selected>VV</option>
+                        <option value="VH">VH</option>
+                    </select>
+                </div>
+                <div class="date-control-item" style="margin-top: 15px;">
                     <label for="startDate">Start Date:</label>
                     <input type="date" id="startDate" style="width: 100%;">
                 </div>
@@ -64,7 +85,6 @@
                     </div>
                 </div>
             </div>
-
             <div class="workflow-stage">
                 <button id="generateGTMaskBtn" class="action-button" disabled>2. Generate GT Mask</button>
                 <div id="gtMaskControls" style="display: none; margin-top: 10px;">
