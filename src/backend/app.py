@@ -440,8 +440,8 @@ def compare_roads():
 
         # Buffer the road networks. 0.0001 degrees is approx 11 meters.
         # This creates a search area around the road lines.
-        post_buffer = post_union.buffer(0.0001)
-        osm_buffer = osm_union.buffer(0.0001)
+        post_buffer = post_union.buffer(0.0002)
+        osm_buffer = osm_union.buffer(0.0002)
 
         damaged_roads = []
         # Iterate through each pre-event road segment
