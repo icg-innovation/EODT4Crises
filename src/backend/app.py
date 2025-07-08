@@ -154,23 +154,48 @@ def index():
 @app.route("/api/get_roads", methods=["GET"])
 def get_roads():
     bbox = request.args.get("bbox")
-    logging.info(f"Received request for OSM roads with bbox: {bbox}")
     types_str = request.args.get("types")
+    # New parameter to get the historical date from the frontend
+    query_date = request.args.get("date") # e.g., "2023-08-15"
+
+    logging.info(f"Received request for OSM roads with bbox: {bbox} for date: {query_date}")
+    
     if not bbox:
         return jsonify({"error": "Missing 'bbox' query parameter"}), 400
     if not types_str:
         return jsonify({"type": "FeatureCollection", "features": []})
+
     try:
         min_lon, min_lat, max_lon, max_lat = [float(coord) for coord in bbox.split(",")]
         overpass_bbox = f"{min_lat},{min_lon},{max_lat},{max_lon}"
     except (ValueError, IndexError) as e:
         logging.error(f"Invalid 'bbox' format: {bbox}. Error: {e}")
         return jsonify({"error": "Invalid 'bbox' format."}), 400
+
     overpass_types = "|".join(types_str.split(","))
+    
+    # IMPORTANT: You must change this URL to a server that supports historical queries!
+    # This is an example URL, please check the Overpass Wiki for an active one.
     overpass_url = "https://overpass-api.de/api/interpreter"
-    overpass_query = f"""[out:json][timeout:25];(way["highway"~"^({overpass_types})$"]({overpass_bbox}););out body;>;out skel qt;"""
+
+    # Construct the date setting for the query
+    date_setting = ""
+    if query_date:
+        # Format the date into the required ISO 8601 format with a time component
+        date_setting = f'[date:"{query_date}T23:59:59Z"]'
+
+    overpass_query = f"""
+        [out:json][timeout:25]{date_setting};
+        (
+          way["highway"~"^({overpass_types})$"]({overpass_bbox});
+        );
+        out body;
+        >;
+        out skel qt;
+    """
+
     try:
-        response = requests.get(overpass_url, params={"data": overpass_query})
+        response = requests.post(overpass_url, data={"data": overpass_query}) # Use POST for multi-line queries
         logging.info(f"Overpass API response status: {response.status_code}")
         response.raise_for_status()
         data = response.json()
@@ -178,6 +203,7 @@ def get_roads():
         return jsonify({"error": f"Failed to fetch data from Overpass API: {e}"}), 502
     except json.JSONDecodeError:
         return jsonify({"error": "Failed to parse response from Overpass API."}), 500
+
     return jsonify(overpass_to_geojson(data))
 
 
