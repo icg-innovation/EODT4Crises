@@ -77,8 +77,8 @@
                     <label for="endDate">End Date:</label>
                     <input type="date" id="endDate" style="width: 100%;">
                 </div>
-                <button id="generateImagesBtn" class="action-button" disabled>1. Generate Satellite Images</button>
-                <button id="generateGTMaskBtn" class="action-button" disabled>2. Generate GT Mask</button>
+                <button id="generateImagesBtn" class="action-button" disabled>Generate Satellite Images</button>
+                <!-- <button id="generateGTMaskBtn" class="action-button" disabled>Generate GT Mask</button> -->
 
                 <div id="gtMaskControls" class="event-controls" style="display: none; border-color: #28a745;">
                     <h4 style="color: #28a745;">Ground Truth (OSM)</h4>
@@ -103,7 +103,7 @@
                         <label class="toggle-label">Opacity:</label>
                         <input type="range" id="preOpacitySlider" min="0" max="1" step="0.05" value="0.8" class="opacity-slider">
                     </div>
-                    <button id="runPreDetectionBtn" class="action-button" disabled>3. Run Pre-Event Detection</button>
+                    <button id="runPreDetectionBtn" class="action-button" disabled>Run Pre-Event Detection</button>
                     <div id="preDetectionControls" class="detection-controls" style="display: none;">
                         <div class="layer-control">
                             <label class="switch"><input type="checkbox" id="togglePrePredMask" checked><span class="slider round"></span></label>
@@ -131,7 +131,7 @@
                         <label class="toggle-label">Opacity:</label>
                         <input type="range" id="postOpacitySlider" min="0" max="1" step="0.05" value="0.8" class="opacity-slider">
                     </div>
-                    <button id="runPostDetectionBtn" class="action-button" disabled>4. Run Post-Event Detection</button>
+                    <button id="runPostDetectionBtn" class="action-button" disabled>Run Post-Event Detection</button>
                     <div id="postDetectionControls" class="detection-controls" style="display: none;">
                         <div class="layer-control">
                             <label class="switch"><input type="checkbox" id="togglePostPredMask" checked><span class="slider round"></span></label>
@@ -148,7 +148,7 @@
                     </div>
                 </div>
                 
-                <button id="compareRoadsBtn" class="action-button" disabled>5. Analyze Road Damage</button>
+                <button id="compareRoadsBtn" class="action-button" disabled>Analyze Road Damage</button>
                 <div id="damageAnalysisControls" class="event-controls" style="display: none; border-color: #dc3545;">
                     <h4 style="color: #dc3545;">Damage Analysis</h4>
                     <div class="layer-control">
@@ -167,6 +167,6 @@
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
-    <script src="app.js" defer></script>
+    <script src="js/main.js" type="module"></script>
 </body>
 </html>
