@@ -147,6 +147,20 @@
                         </div>
                     </div>
                 </div>
+                
+                <button id="compareRoadsBtn" class="action-button" disabled>5. Analyze Road Damage</button>
+                <div id="damageAnalysisControls" class="event-controls" style="display: none; border-color: #dc3545;">
+                    <h4 style="color: #dc3545;">Damage Analysis</h4>
+                    <div class="layer-control">
+                        <label class="switch"><input type="checkbox" id="toggleDamageLayer" checked><span class="slider round"></span></label>
+                        <span class="toggle-label">Damaged Roads</span>
+                    </div>
+                    <div class="layer-control">
+                        <label class="toggle-label">Opacity:</label>
+                        <input type="range" id="damageOpacitySlider" min="0" max="1" step="0.05" value="0.9" class="opacity-slider">
+                    </div>
+                </div>
+
             </div>
         </div>
     </div>

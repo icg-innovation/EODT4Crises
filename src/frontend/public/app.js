@@ -17,6 +17,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let drawnRectangle = null;
     let analysisState = {
         gtMaskLayer: null,
+        damageLayer: null, // New state for the damage layer
         pre: { satLayer: null, predMaskLayer: null, predGraphLayer: null, imageUrl: null, bounds: null, rawBounds: null, satellite: null },
         post: { satLayer: null, predMaskLayer: null, predGraphLayer: null, imageUrl: null, bounds: null, rawBounds: null, satellite: null }
     };
@@ -25,6 +26,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const generateImagesBtn = document.getElementById('generateImagesBtn');
     const generateGTMaskBtn = document.getElementById('generateGTMaskBtn');
     const updateRoadsBtn = document.getElementById('updateRoadsBtn');
+    const compareRoadsBtn = document.getElementById('compareRoadsBtn'); // New button
     const startDateInput = document.getElementById('startDate');
     const midDateInput = document.getElementById('midDate');
     const endDateInput = document.getElementById('endDate');
@@ -33,17 +35,21 @@ document.addEventListener('DOMContentLoaded', () => {
     const cloudCoverSlider = document.getElementById('cloudCoverSlider');
     const cloudCoverValue = document.getElementById('cloudCoverValue');
     const sentinel1Options = document.getElementById('sentinel1Options');
-    const polarizationSelect = document.getElementById('polarizationSelect');
-    const gtMaskControls = document.getElementById('gtMaskControls'); 
+    const gtMaskControls = document.getElementById('gtMaskControls');
+    const damageAnalysisControls = document.getElementById('damageAnalysisControls'); // New controls
 
     const showLoader = (text = 'Processing...') => { loader.textContent = text; loader.style.display = 'flex'; };
     const hideLoader = () => loader.style.display = 'none';
 
     const resetWorkflow = (fullReset = false) => {
         if (analysisState.gtMaskLayer) analysisState.gtMaskLayer.remove();
+        if (analysisState.damageLayer) analysisState.damageLayer.remove(); // Reset damage layer
         analysisState.gtMaskLayer = null;
+        analysisState.damageLayer = null;
         gtMaskControls.style.display = 'none';
+        damageAnalysisControls.style.display = 'none'; // Hide damage controls
         generateGTMaskBtn.disabled = true;
+        compareRoadsBtn.disabled = true; // Disable compare button
 
         ['pre', 'post'].forEach(prefix => {
             Object.values(analysisState[prefix]).forEach(layer => {
@@ -152,7 +158,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             if (preImageResult || postImageResult) {
-                generateGTMaskBtn.disabled = false; // Enable GT mask button
+                generateGTMaskBtn.disabled = false;
                 map.fitBounds(analysisState.pre.bounds || analysisState.post.bounds);
             } else {
                 alert('Could not find any images for the selected dates and area.');
@@ -238,9 +244,46 @@ document.addEventListener('DOMContentLoaded', () => {
             analysisState[prefix].predGraphLayer = L.geoJSON(data.geojson, { style: () => ({ color: prefix === 'pre' ? '#00ffff' : '#ff00ff', weight: 3 }) }).addTo(map);
             analysisState[prefix].predMaskLayer = L.imageOverlay(data.maskUrl, analysisState[prefix].bounds, { opacity: 0.7 }).addTo(map);
             document.getElementById(`${prefix}DetectionControls`).style.display = 'block';
+
+            // Check if both detections are done to enable comparison
+            if (analysisState.pre.predGraphLayer && analysisState.post.predGraphLayer) {
+                compareRoadsBtn.disabled = false;
+            }
         } catch (error) { console.error(`${prefix} Detection Error:`, error); alert(`Detection failed: ${error.message}`);
         } finally { hideLoader(); }
     }
+    
+    // New function to handle road comparison
+    compareRoadsBtn.addEventListener('click', async () => {
+        if (!drawnRectangle) { alert('Please draw an area of interest first.'); return; }
+        if (!analysisState.pre.predGraphLayer || !analysisState.post.predGraphLayer) {
+            alert('Please run both pre and post-event detection first.'); return;
+        }
+
+        showLoader('Analyzing road damage...');
+        try {
+            const bbox = drawnRectangle.getBounds().toBBoxString();
+            const types = getSelectedRoadTypes();
+            const url = `${API_BASE_URL}/api/compare_roads?bbox=${bbox}&types=${types}`;
+            
+            const res = await fetch(url);
+            if (!res.ok) throw new Error((await res.json()).error);
+            const data = await res.json();
+
+            if (analysisState.damageLayer) analysisState.damageLayer.remove();
+            
+            analysisState.damageLayer = L.geoJSON(data.geojson, {
+                style: () => ({ color: '#FFD700', weight: 5, opacity: 0.9 }) // Bright yellow for damage
+            }).addTo(map);
+            damageAnalysisControls.style.display = 'block';
+
+        } catch (error) {
+            console.error('Damage Analysis Error:', error);
+            alert(`Damage analysis failed: ${error.message}`);
+        } finally {
+            hideLoader();
+        }
+    });
 
     document.getElementById('runPreDetectionBtn').addEventListener('click', () => runDetection('pre'));
     document.getElementById('runPostDetectionBtn').addEventListener('click', () => runDetection('post'));
@@ -250,6 +293,11 @@ document.addEventListener('DOMContentLoaded', () => {
     
     document.getElementById('toggleGtMask').addEventListener('change', (e) => map.toggleLayer(analysisState.gtMaskLayer, e.target.checked));
     document.getElementById('gtMaskOpacitySlider').addEventListener('input', (e) => { if (analysisState.gtMaskLayer) analysisState.gtMaskLayer.setOpacity(e.target.value); });
+
+    // New handlers for damage layer
+    document.getElementById('toggleDamageLayer').addEventListener('change', (e) => map.toggleLayer(analysisState.damageLayer, e.target.checked));
+    document.getElementById('damageOpacitySlider').addEventListener('input', (e) => { if (analysisState.damageLayer) analysisState.damageLayer.setOpacity(e.target.value); });
+
 
     L.Map.prototype.toggleLayer = (layer, show) => { if (layer) { if (show) map.addLayer(layer); else map.removeLayer(layer); } };
     

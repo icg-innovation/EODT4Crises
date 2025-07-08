@@ -20,6 +20,8 @@ from data_processing.gee_downloader import (
 from pyproj import Transformer
 import logging
 from PIL import Image, ImageDraw
+from shapely.geometry import shape, LineString
+from shapely.ops import unary_union
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
@@ -353,6 +355,89 @@ def get_predicted_roads():
         return jsonify({"geojson": predicted_roads_geojson, "maskUrl": f"/static/{mask_filename}"})
     except Exception as e:
         return jsonify({"error": f"Failed to process model output: {str(e)}"}), 500
+
+# --- NEW ENDPOINT FOR ROAD COMPARISON ---
+@app.route("/api/compare_roads", methods=["GET"])
+def compare_roads():
+    bbox = request.args.get("bbox")
+    types_str = request.args.get("types")
+    if not bbox or not types_str:
+        return jsonify({"error": "Missing 'bbox' or 'types' parameter"}), 400
+
+    # 1. Load Pre- and Post-event prediction data
+    try:
+        # Recreate GeoJSON for pre-event roads
+        geotiff_path_pre = os.path.join(backend_static_folder, "temp_satellite_pre.tif")
+        graph_path_pre = os.path.join(SAM_ROAD_PROJECT_DIR, "save", "sentinel_test_pre", "graph", "0.p")
+        with open(graph_path_pre, "rb") as f:
+            graph_data_pre = pickle.load(f)
+        pre_event_geojson = graph_to_geojson(graph_data_pre, geotiff_path_pre)
+
+        # Recreate GeoJSON for post-event roads
+        geotiff_path_post = os.path.join(backend_static_folder, "temp_satellite_post.tif")
+        graph_path_post = os.path.join(SAM_ROAD_PROJECT_DIR, "save", "sentinel_test_post", "graph", "0.p")
+        with open(graph_path_post, "rb") as f:
+            graph_data_post = pickle.load(f)
+        post_event_geojson = graph_to_geojson(graph_data_post, geotiff_path_post)
+    except FileNotFoundError as e:
+        logging.error(f"Prediction file not found: {e}")
+        return jsonify({"error": "A prediction file was not found. Please run both detections first."}), 404
+    except Exception as e:
+        logging.error(f"Error loading prediction data: {e}")
+        return jsonify({"error": "Could not load prediction data."}), 500
+        
+    # 2. Load OSM ground truth data
+    try:
+        min_lon, min_lat, max_lon, max_lat = [float(coord) for coord in bbox.split(",")]
+        overpass_bbox = f"{min_lat},{min_lon},{max_lat},{max_lon}"
+        overpass_types = "|".join(types_str.split(","))
+        overpass_url = "https://overpass-api.de/api/interpreter"
+        overpass_query = f"""[out:json][timeout:25];(way["highway"~"^({overpass_types})$"]({overpass_bbox}););out body;>;out skel qt;"""
+        response = requests.get(overpass_url, params={"data": overpass_query})
+        response.raise_for_status()
+        osm_geojson = overpass_to_geojson(response.json())
+    except Exception as e:
+        return jsonify({"error": f"Failed to fetch or process OSM data: {e}"}), 500
+
+    # 3. Perform the comparison
+    try:
+        # Convert post-event and OSM roads to Shapely geometries for efficient searching
+        post_lines = [shape(feature["geometry"]) for feature in post_event_geojson["features"]]
+        osm_lines = [shape(feature["geometry"]) for feature in osm_geojson["features"]]
+
+        if not osm_lines:
+            return jsonify({"error": "No OSM roads found in the area to use as a reference."}), 404
+
+        # Combine all post-event and OSM roads into two single, unified geometries
+        post_union = unary_union(post_lines)
+        osm_union = unary_union(osm_lines)
+
+        # Buffer the road networks. 0.0001 degrees is approx 11 meters.
+        # This creates a search area around the road lines.
+        post_buffer = post_union.buffer(0.0001)
+        osm_buffer = osm_union.buffer(0.0001)
+
+        damaged_roads = []
+        # Iterate through each pre-event road segment
+        for feature in pre_event_geojson["features"]:
+            pre_line = shape(feature["geometry"])
+            
+            # A road is considered damaged if it meets two conditions:
+            # 1. It existed in the known OSM road network (i.e., it's a real road, not a model error).
+            # 2. It does NOT exist in the post-event prediction.
+            is_on_osm = pre_line.intersects(osm_buffer)
+            is_in_post = pre_line.intersects(post_buffer)
+
+            if is_on_osm and not is_in_post:
+                damaged_roads.append(feature)
+
+        result_geojson = {"type": "FeatureCollection", "features": damaged_roads}
+        return jsonify({"geojson": result_geojson})
+        
+    except Exception as e:
+        logging.error(f"Error during comparison: {e}", exc_info=True)
+        return jsonify({"error": f"An unexpected error occurred during analysis: {e}"}), 500
+
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=4000, debug=True)
