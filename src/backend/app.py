@@ -110,23 +110,38 @@ def graph_to_geojson(adjacency_list, geotiff_path):
     features = []
     try:
         with rasterio.open(geotiff_path) as src:
+            # Get the TRUE dimensions of the underlying GeoTIFF
             H_orig, W_orig = src.height, src.width
-            H_new, W_new = 512, 512
-            scale_x = W_orig / W_new
-            scale_y = H_orig / H_new
-            scaled_transform = src.transform * Affine.scale(scale_x, scale_y)
+            
+            # --- START OF FIX ---
+            # REMOVED: No more incorrect scaling based on a fixed 512x512 size.
+            # The transform from the GeoTIFF is all we need.
+            transform = src.transform
+            # --- END OF FIX ---
+
             transformer = Transformer.from_crs(src.crs, "EPSG:4326", always_xy=True)
 
             for source_node_yx, dest_nodes_yx in adjacency_list.items():
                 for dest_node_yx in dest_nodes_yx:
-                    source_y_flipped, source_x = source_node_yx
-                    dest_y_flipped, dest_x = dest_node_yx
-                    source_y = SPACENET_TRANSFORM_HEIGHT - source_y_flipped
-                    dest_y = SPACENET_TRANSFORM_HEIGHT - dest_y_flipped
+                    # The nodes are saved as (row, col) which corresponds to (y, x)
+                    source_y_pixel, source_x_pixel = source_node_yx
+                    dest_y_pixel, dest_x_pixel = dest_node_yx
 
-                    start_x_proj, start_y_proj = (source_x + 0.5, source_y + 0.5) * scaled_transform
-                    end_x_proj, end_y_proj = (dest_x + 0.5, dest_y + 0.5) * scaled_transform
+                    # --- START OF FIX ---
+                    # The Y-coordinate needs to be flipped relative to the image's ACTUAL height,
+                    # not a hardcoded value like 400.
+                    # This step is commented out because the model output (y,x) from top-left
+                    # already matches rasterio's convention. If you still see a vertical flip,
+                    # you might need to uncomment these two lines.
+                    # source_y_pixel = H_orig - source_y_pixel
+                    # dest_y_pixel = H_orig - dest_y_pixel
+                    # --- END OF FIX ---
+                    
+                    # Convert pixel coordinates to projected coordinates (e.g., Web Mercator)
+                    start_x_proj, start_y_proj = (source_x_pixel + 0.5, source_y_pixel + 0.5) * transform
+                    end_x_proj, end_y_proj = (dest_x_pixel + 0.5, dest_y_pixel + 0.5) * transform
 
+                    # Convert projected coordinates to geographic coordinates (lat/lon)
                     start_lon, start_lat = transformer.transform(start_x_proj, start_y_proj)
                     end_lon, end_lat = transformer.transform(end_x_proj, end_y_proj)
 
@@ -214,7 +229,7 @@ def download_satellite_image():
     end_date = request.args.get("end_date")
     target_date = request.args.get("target_date")
     satellite = request.args.get("satellite", "sentinel_2")
-    prefix = request.args.get("prefix", "temp") 
+    prefix = request.args.get("prefix", "temp")
 
     logging.info(f"Download request for {prefix}-event ({satellite})")
 
@@ -229,13 +244,15 @@ def download_satellite_image():
     options = {}
     if satellite == "sentinel_2":
         options["cloudy_pixel_percentage"] = request.args.get("cloudy_pixel_percentage", 10, type=int)
+    elif satellite == "sentinel_2_nir":
+        options["cloudy_pixel_percentage"] = request.args.get("cloudy_pixel_percentage", 10, type=int)
     elif satellite == "sentinel_1":
         polarization = request.args.get("polarization", "VV", type=str)
         options["polarization"] = polarization
         options["bands"] = [polarization]
-    
+
     geotiff_path = os.path.join(backend_static_folder, f"temp_satellite_{prefix}.tif")
-    
+
     try:
         _, image_date = download_gee_image_near_date(
             lat_st, lon_st, lat_ed, lon_ed,
@@ -247,7 +264,7 @@ def download_satellite_image():
             satellite=satellite,
             options=options
         )
-            
+
         return jsonify({"message": "Download successful", "imageDate": image_date, "prefix": prefix})
     except Exception as e:
         logging.error(f"Image download failed: {e}", exc_info=True)
@@ -258,13 +275,13 @@ def process_satellite_image():
     satellite = request.args.get("satellite", "sentinel_2")
     brightness_str = request.args.get("brightness", "1.0")
     prefix = request.args.get("prefix")
-    
+
     if not prefix:
         return jsonify({"error": "Could not determine processing prefix. Download first."}), 400
 
     geotiff_path = os.path.join(backend_static_folder, f"temp_satellite_{prefix}.tif")
     logging.info(f"Processing {prefix}-event {satellite} image.")
-    
+
     if not os.path.exists(geotiff_path):
         return jsonify({"error": "No satellite data found. Please download data first."}), 404
 
@@ -273,7 +290,7 @@ def process_satellite_image():
         unique_id = f"{prefix}_{int(time.time())}"
         png_filename = f"satellite_image_{unique_id}.png"
         png_path = os.path.join(backend_static_folder, png_filename)
-        
+
         bounds_4326 = process_geotiff_image(
             tif_path=geotiff_path,
             save_path=png_path,
@@ -345,7 +362,7 @@ def get_predicted_roads():
     input_image_path = os.path.abspath(os.path.join(backend_static_folder, input_filename))
     if not os.path.exists(input_image_path):
         return jsonify({"error": f"Satellite image not found on server: {input_filename}"}), 404
-        
+
     output_dir_name = f"sentinel_test_{prefix}"
     model_output_dir = os.path.join(SAM_ROAD_PROJECT_DIR, "save", output_dir_name)
     python_executable = sys.executable
@@ -411,7 +428,7 @@ def compare_roads():
     except Exception as e:
         logging.error(f"Error loading prediction data: {e}")
         return jsonify({"error": "Could not load prediction data."}), 500
-        
+
     # 2. Load OSM ground truth data
     try:
         min_lon, min_lat, max_lon, max_lat = [float(coord) for coord in bbox.split(",")]

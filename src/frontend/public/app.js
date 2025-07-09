@@ -15,7 +15,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const API_BASE_URL = 'http://localhost:4000';
     let drawnRectangle = null;
-    
+
     // MODIFIED: We now use ...Group to hold the two layers (casing + main line)
     let analysisState = {
         gtMaskLayer: null,
@@ -33,10 +33,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const midDateInput = document.getElementById('midDate');
     const endDateInput = document.getElementById('endDate');
     const satelliteSelect = document.getElementById('satelliteSelect');
+    const sentinel1Options = document.getElementById('sentinel1Options');
     const sentinel2Options = document.getElementById('sentinel2Options');
+    const sentinel2NIROptions = document.getElementById('sentinel2NIROptions');
     const cloudCoverSlider = document.getElementById('cloudCoverSlider');
     const cloudCoverValue = document.getElementById('cloudCoverValue');
-    const sentinel1Options = document.getElementById('sentinel1Options');
+    const cloudCoverSliderNIR = document.getElementById('cloudCoverSliderNIR');
+    const cloudCoverValueNIR = document.getElementById('cloudCoverValueNIR');
     const gtMaskControls = document.getElementById('gtMaskControls');
     const damageAnalysisControls = document.getElementById('damageAnalysisControls');
 
@@ -44,7 +47,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const hideLoader = () => loader.style.display = 'none';
 
     const resetWorkflow = (fullReset = false) => {
-        // MODIFIED: Remove groups instead of single layers
         if (analysisState.gtMaskLayer) analysisState.gtMaskLayer.remove();
         if (analysisState.damageLayerGroup) analysisState.damageLayerGroup.remove();
         analysisState.gtMaskLayer = null;
@@ -56,18 +58,16 @@ document.addEventListener('DOMContentLoaded', () => {
         compareRoadsBtn.disabled = true;
 
         ['pre', 'post'].forEach(prefix => {
-            // Remove satellite and mask layers
             if (analysisState[prefix].satLayer) analysisState[prefix].satLayer.remove();
             if (analysisState[prefix].predMaskLayer) analysisState[prefix].predMaskLayer.remove();
-            // MODIFIED: Remove the entire feature group for graphs
             if (analysisState[prefix].predGraphGroup) analysisState[prefix].predGraphGroup.remove();
-            
+
             analysisState[prefix] = { satLayer: null, predMaskLayer: null, predGraphGroup: null, imageUrl: null, bounds: null, rawBounds: null, satellite: null };
             document.getElementById(`${prefix}EventControls`).style.display = 'none';
             document.getElementById(`${prefix}DetectionControls`).style.display = 'none';
             document.getElementById(`run${prefix.charAt(0).toUpperCase() + prefix.slice(1)}DetectionBtn`).disabled = true;
         });
-        
+
         document.getElementById('toggleGtMask').checked = true;
         document.getElementById('gtMaskOpacitySlider').value = 0.7;
         document.getElementById('togglePreSat').checked = true;
@@ -105,8 +105,8 @@ document.addEventListener('DOMContentLoaded', () => {
     
     const today = new Date();
     const oneMonthAgo = new Date(new Date().setMonth(today.getMonth() - 1));
-    const threeMonthsAgo = new Date(new Date().setMonth(today.getMonth() - 3));
-    startDateInput.value = threeMonthsAgo.toISOString().split('T')[0];
+    const twoMonthsAgo = new Date(new Date().setMonth(today.getMonth() - 2));
+    startDateInput.value = twoMonthsAgo.toISOString().split('T')[0];
     midDateInput.value = oneMonthAgo.toISOString().split('T')[0];
     endDateInput.value = today.toISOString().split('T')[0];
 
@@ -162,9 +162,17 @@ document.addEventListener('DOMContentLoaded', () => {
         resetWorkflow();
         const bbox = drawnRectangle.getBounds().toBBoxString();
         const satellite = satelliteSelect.value;
+        let cloudCover = undefined;
+        if (satellite === 'sentinel_2') {
+            cloudCover = cloudCoverSlider.value;
+        } else if (satellite === 'sentinel_2_nir') {
+            cloudCover = cloudCoverSliderNIR.value;
+        }
+
         const commonParams = {
-            bbox: bbox, satellite: satellite,
-            cloudy_pixel_percentage: satellite === 'sentinel_2' ? cloudCoverSlider.value : undefined,
+            bbox: bbox,
+            satellite: satellite,
+            cloudy_pixel_percentage: cloudCover,
             polarization: satellite === 'sentinel_1' ? polarizationSelect.value : undefined
         };
         try {
@@ -358,9 +366,14 @@ document.addEventListener('DOMContentLoaded', () => {
         const selected = e.target.value;
         sentinel1Options.style.display = selected === 'sentinel_1' ? 'block' : 'none';
         sentinel2Options.style.display = selected === 'sentinel_2' ? 'block' : 'none';
+        sentinel2NIROptions.style.display = selected === 'sentinel_2_nir' ? 'block' : 'none';
     });
 
     cloudCoverSlider.addEventListener('input', (e) => {
         cloudCoverValue.textContent = e.target.value;
+    });
+
+    cloudCoverSliderNIR.addEventListener('input', (e) => {
+        cloudCoverValueNIR.textContent = e.target.value;
     });
 });

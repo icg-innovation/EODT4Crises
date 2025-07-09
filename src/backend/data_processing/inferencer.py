@@ -59,9 +59,28 @@ def crop_img_patch(img, x0, y0, x1, y1):
 
 def get_batch_img_patches(img, batch_patch_info):
     patches = []
+    # The model expects a fixed patch size, likely defined in the config.
+    # We'll assume it's config.PATCH_SIZE for both height and width.
+    target_size = config.PATCH_SIZE 
+
     for _, (x0, y0), (x1, y1) in batch_patch_info:
         patch = crop_img_patch(img, x0, y0, x1, y1)
+        
+        # --- START OF FIX ---
+        h, w, c = patch.shape
+        
+        # Check if the cropped patch is smaller than the target size
+        if h < target_size or w < target_size:
+            pad_h = target_size - h
+            pad_w = target_size - w
+            
+            # Pad the patch with zeros to match the target size.
+            # The padding is applied to the bottom and right edges.
+            patch = np.pad(patch, ((0, pad_h), (0, pad_w), (0, 0)), mode='constant', constant_values=0)
+        # --- END OF FIX ---
+            
         patches.append(torch.tensor(patch, dtype=torch.float32))
+        
     batch = torch.stack(patches, 0).contiguous()
     return batch
 
@@ -114,17 +133,36 @@ def infer_one_img(net, img, config):
                 batch_img_patches
             )
             img_features.append(patch_img_features)
-        # Aggregate masks
+            
+        # --- START OF FIX ---
+        # Aggregate masks by cropping the output to the correct size
         for patch_index, patch_info in enumerate(batch_patch_info):
             _, (x0, y0), (x1, y1) = patch_info
-            keypoint_patch, road_patch = (
-                mask_scores[patch_index, :, :, 0],
-                mask_scores[patch_index, :, :, 1],
-            )
-            fused_keypoint_mask[y0:y1, x0:x1] += keypoint_patch
-            fused_road_mask[y0:y1, x0:x1] += road_patch
+
+            # --- START OF DEFINITIVE FIX ---
+
+            # Define the destination slice for the canvas
+            keypoint_dest_slice = fused_keypoint_mask[y0:y1, x0:x1]
+
+            # Get the TRUE height and width from the destination slice itself.
+            # This automatically handles edge cases where the slice is smaller than the patch.
+            h, w = keypoint_dest_slice.shape
+
+            # Get the full output patches from the model
+            full_keypoint_patch = mask_scores[patch_index, :, :, 0]
+            full_road_patch = mask_scores[patch_index, :, :, 1]
+            
+            # Crop the model's output to the true dimensions of the destination
+            keypoint_patch_cropped = full_keypoint_patch[:h, :w]
+            road_patch_cropped = full_road_patch[:h, :w]
+            
+            # Now, the dimensions are guaranteed to match
+            keypoint_dest_slice += keypoint_patch_cropped
+            fused_road_mask[y0:y1, x0:x1] += road_patch_cropped
+
+            # The pixel counter must also use the correct, cropped dimensions
             pixel_counter[y0:y1, x0:x1] += torch.ones(
-                road_patch.shape[0:2], dtype=torch.float32, device=args.device
+                (h, w), dtype=torch.float32, device=args.device
             )
 
     fused_keypoint_mask /= pixel_counter
@@ -343,9 +381,9 @@ if __name__ == "__main__":
         cv2.imwrite(os.path.join(viz_save_dir, f"{img_id}.png"), viz_img)
 
         # Saves the large map
-        if config.DATASET == "spacenet":
-            # r, c -> ???
-            pred_nodes = np.stack([400 - pred_nodes[:, 0], pred_nodes[:, 1]], axis=1)
+        # if config.DATASET == "spacenet":
+        #     # r, c -> ???
+        #     pred_nodes = np.stack([400 - pred_nodes[:, 0], pred_nodes[:, 1]], axis=1)
         large_map_sat2graph_format = graph_utils.convert_to_sat2graph_format(
             pred_nodes, pred_edges
         )

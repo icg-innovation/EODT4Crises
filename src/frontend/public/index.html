@@ -14,11 +14,16 @@
 
     <div class="title-overlay">EODT4Crises Road Identification</div>
 
+    <div class="logo-container" style="position: absolute; bottom: 10px; left: 10px; z-index: 1000;">
+        <img src="eodt4crisis_logo.jpg" alt="EODT4Crises Logo" style="width: 100px; height: auto;">
+    </div>
+
+    <div id="baseMapToggleContainer" style="position: absolute; bottom: 30px; right: 10px; z-index: 1000;">
+        <label class="switch"><input type="checkbox" id="baseMapToggle" checked><span class="slider round"></span></label>
+        <span class="toggle-label">Base Map</span>
+    </div>
+
     <div class="controls-container">
-        <div class="layer-control">
-            <label class="switch"><input type="checkbox" id="baseMapToggle" checked><span class="slider round"></span></label>
-            <span class="toggle-label">Base Map</span>
-        </div>
         <div class="layer-control">
             <label class="switch"><input type="checkbox" id="roadToggle" checked><span class="slider round"></span></label>
             <span class="toggle-label">OSM Roads</span>
@@ -34,21 +39,20 @@
                 <label><input type="checkbox" class="road-type-filter" value="trunk_link" checked> Trunk Link</label>
                 <label><input type="checkbox" class="road-type-filter" value="primary" checked> Primary</label>
                 <label><input type="checkbox" class="road-type-filter" value="secondary" checked> Secondary</label>
-                <label><input type="checkbox" class="road-type-filter" value="tertiary" checked> Tertiary</label>
-                <label><input type="checkbox" class="road-type-filter" value="residential" checked> Residential</label>
-                <label><input type="checkbox" class="road-type-filter" value="unclassified" checked> Unclassified</label>
+                <label><input type="checkbox" class="road-type-filter" value="tertiary" unchecked> Tertiary</label>
+                <label><input type="checkbox" class="road-type-filter" value="residential" unchecked> Residential</label>
+                <label><input type="checkbox" class="road-type-filter" value="unclassified" unchecked> Unclassified</label>
                 <button id="updateRoadsBtn" class="action-button">Update Roads</button>
             </div>
         </div>
-        
+
         <div class="analysis-workflow section-divider">
-            <strong>Analysis Workflow:</strong>
-            
             <div class="workflow-stage">
                 <div class="satellite-selection">
                     <label for="satelliteSelect"><strong>Satellite:</strong></label>
                     <select id="satelliteSelect" style="width: 100%; padding: 5px; margin-top: 5px;">
                         <option value="sentinel_2" selected>Sentinel-2</option>
+                        <option value="sentinel_2_nir">Sentinel-2 NIR</option>
                         <option value="sentinel_1">Sentinel-1</option>
                     </select>
                 </div>
@@ -56,6 +60,11 @@
                 <div id="sentinel2Options" class="satellite-options" style="margin-top: 10px;">
                     <label for="cloudCoverSlider">Cloud Cover (%): <span id="cloudCoverValue">10</span>%</label>
                     <input type="range" id="cloudCoverSlider" min="0" max="100" value="10" style="width: 100%;">
+                </div>
+
+                <div id="sentinel2NIROptions" class="satellite-options" style="margin-top: 10px; display: none;">
+                    <label for="cloudCoverSliderNIR">Cloud Cover (%): <span id="cloudCoverValueNIR">10</span>%</label>
+                    <input type="range" id="cloudCoverSliderNIR" min="0" max="100" value="10" style="width: 100%;">
                 </div>
 
                 <div id="sentinel1Options" class="satellite-options" style="display: none; margin-top: 10px;">
@@ -70,21 +79,21 @@
                     <input type="date" id="startDate" style="width: 100%;">
                 </div>
                 <div class="date-control-item">
-                    <label for="midDate">Mid-Point Date:</label>
+                    <label for="midDate">Event Date:</label>
                     <input type="date" id="midDate" style="width: 100%;">
                 </div>
                 <div class="date-control-item">
                     <label for="endDate">End Date:</label>
                     <input type="date" id="endDate" style="width: 100%;">
                 </div>
-                <button id="generateImagesBtn" class="action-button" disabled>1. Generate Satellite Images</button>
-                <button id="generateGTMaskBtn" class="action-button" disabled>2. Generate GT Mask</button>
+                <button id="generateImagesBtn" class="action-button" disabled>Retrieve Satellite Images</button>
+                <button id="generateGTMaskBtn" class="action-button" disabled>Generate OSM Ground Truth Mask</button>
 
                 <div id="gtMaskControls" class="event-controls" style="display: none; border-color: #28a745;">
                     <h4 style="color: #28a745;">Ground Truth (OSM)</h4>
                     <div class="layer-control">
                         <label class="switch"><input type="checkbox" id="toggleGtMask" checked><span class="slider round"></span></label>
-                        <span class="toggle-label">GT Mask</span>
+                        <span class="toggle-label">Ground Truth Mask</span>
                     </div>
                     <div class="layer-control">
                         <label class="toggle-label">Opacity:</label>
@@ -103,11 +112,11 @@
                         <label class="toggle-label">Opacity:</label>
                         <input type="range" id="preOpacitySlider" min="0" max="1" step="0.05" value="0.8" class="opacity-slider">
                     </div>
-                    <button id="runPreDetectionBtn" class="action-button" disabled>3. Run Pre-Event Detection</button>
+                    <button id="runPreDetectionBtn" class="action-button" disabled>Run Pre-Event Detection</button>
                     <div id="preDetectionControls" class="detection-controls" style="display: none;">
                         <div class="layer-control">
                             <label class="switch"><input type="checkbox" id="togglePrePredMask" checked><span class="slider round"></span></label>
-                            <span class="toggle-label">Pred. Mask</span>
+                            <span class="toggle-label">Mask</span>
                         </div>
                         <div class="layer-control">
                             <label class="toggle-label">Opacity:</label>
@@ -115,7 +124,7 @@
                         </div>
                         <div class="layer-control">
                             <label class="switch"><input type="checkbox" id="togglePrePredGraph" checked><span class="slider round"></span></label>
-                            <span class="toggle-label">Pred. Graph</span>
+                            <span class="toggle-label">Graph</span>
                         </div>
                     </div>
                 </div>
@@ -131,11 +140,11 @@
                         <label class="toggle-label">Opacity:</label>
                         <input type="range" id="postOpacitySlider" min="0" max="1" step="0.05" value="0.8" class="opacity-slider">
                     </div>
-                    <button id="runPostDetectionBtn" class="action-button" disabled>4. Run Post-Event Detection</button>
+                    <button id="runPostDetectionBtn" class="action-button" disabled>Run Post-Event Detection</button>
                     <div id="postDetectionControls" class="detection-controls" style="display: none;">
                         <div class="layer-control">
                             <label class="switch"><input type="checkbox" id="togglePostPredMask" checked><span class="slider round"></span></label>
-                            <span class="toggle-label">Pred. Mask</span>
+                            <span class="toggle-label">Mask</span>
                         </div>
                         <div class="layer-control">
                             <label class="toggle-label">Opacity:</label>
@@ -143,12 +152,12 @@
                         </div>
                         <div class="layer-control">
                             <label class="switch"><input type="checkbox" id="togglePostPredGraph" checked><span class="slider round"></span></label>
-                            <span class="toggle-label">Pred. Graph</span>
+                            <span class="toggle-label">Graph</span>
                         </div>
                     </div>
                 </div>
                 
-                <button id="compareRoadsBtn" class="action-button" disabled>5. Analyze Road Damage</button>
+                <button id="compareRoadsBtn" class="action-button" disabled>Analyze Road Damage</button>
                 <div id="damageAnalysisControls" class="event-controls" style="display: none; border-color: #dc3545;">
                     <h4 style="color: #dc3545;">Damage Analysis</h4>
                     <div class="layer-control">

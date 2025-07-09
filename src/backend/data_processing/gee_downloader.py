@@ -17,6 +17,11 @@ SATELLITE_CONFIG = {
         "bands": ["B4", "B3", "B2"],
         "default_options": {"cloudy_pixel_percentage": 10}
     },
+    "sentinel_2_nir": {
+        "collection": "COPERNICUS/S2_HARMONIZED",
+        "bands": ["B4", "B8", "B3"],
+        "default_options": {"cloudy_pixel_percentage": 10}
+    },
     "sentinel_1": {
         "collection": "COPERNICUS/S1_GRD",
         "bands": ["VV"],
@@ -54,7 +59,7 @@ def download_gee_image_near_date(
     current_options = config["default_options"].copy()
     if options:
         current_options.update(options)
-    
+
     region = ee.Geometry.Polygon([
         [[lon_st, lat_ed], [lon_st, lat_st], [lon_ed, lat_st], [lon_ed, lat_ed], [lon_st, lat_ed]]
     ])
@@ -66,6 +71,9 @@ def download_gee_image_near_date(
     )
 
     if satellite == "sentinel_2":
+        cloud_filter = current_options.get("cloudy_pixel_percentage", 10)
+        image_collection = image_collection.filter(ee.Filter.lt("CLOUDY_PIXEL_PERCENTAGE", cloud_filter))
+    elif satellite == "sentinel_2_nir":
         cloud_filter = current_options.get("cloudy_pixel_percentage", 10)
         image_collection = image_collection.filter(ee.Filter.lt("CLOUDY_PIXEL_PERCENTAGE", cloud_filter))
     elif satellite == "sentinel_1":
@@ -88,7 +96,7 @@ def download_gee_image_near_date(
     image_date_info = image.get("system:time_start").getInfo()
     image_date_str = datetime.utcfromtimestamp(image_date_info / 1000).strftime("%Y-%m-%d")
     logging.info(f"Found image from date: {image_date_str} (closest to {target_date})")
-    
+
     bands_to_download = options.get("bands", config["bands"])
     url = image.select(bands_to_download).getDownloadURL({
         "region": region, "scale": scale, "crs": "EPSG:3857", "format": "GEO_TIFF"
@@ -105,8 +113,14 @@ def download_gee_image_near_date(
 def process_geotiff_image(tif_path, save_path, satellite, size=(512, 512), brightness_factor=1.0):
     with rasterio.open(tif_path) as src:
         bounds_3857 = src.bounds
-        
+
         if satellite == "sentinel_2":
+            img = src.read([1, 2, 3])
+            img = np.transpose(img, (1, 2, 0))
+            divisor = 10000.0 / brightness_factor
+            img = np.clip(img / divisor, 0, 1) * 255
+            img = img.astype(np.uint8)
+        elif satellite == "sentinel_2_nir":
             img = src.read([1, 2, 3])
             img = np.transpose(img, (1, 2, 0))
             divisor = 10000.0 / brightness_factor
@@ -121,14 +135,14 @@ def process_geotiff_image(tif_path, save_path, satellite, size=(512, 512), brigh
         else:
             raise ValueError(f"Processing not implemented for satellite: {satellite}")
 
-        img_resized = Image.fromarray(img).resize(size, Image.BILINEAR)
+        # img_resized = Image.fromarray(img).resize(size, Image.BILINEAR)
 
-        arr = np.array(img_resized)
-        if np.all(arr == 0, axis=-1).sum() > 0.97 * arr.size / 3:
+        if np.all(img == 0, axis=-1).sum() > 0.97 * img.size / 3:
             logging.warning("Image has excessive black pixels, skipping.")
             return None
 
-        img_resized.save(save_path)
+        # Create a PIL Image from the original numpy array and save it.
+        Image.fromarray(img).save(save_path)
         logging.info("Saved processed image to: %s", save_path)
 
         try:

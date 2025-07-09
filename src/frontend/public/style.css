@@ -33,3 +33,55 @@ input[type="color"] { width: 40px; height: 25px; border: 1px solid #ccc; padding
 .event-controls h4 { margin-top: 0; }
 .image-date-display { font-size: 0.9em; margin-bottom: 10px; }
 .opacity-slider { width: 100px; margin-left: 8px; }
+
+/* Improved slider styling */
+.opacity-slider {
+    -webkit-appearance: none;
+    width: 120px;
+    height: 6px;
+    background: #ddd;
+    border-radius: 3px;
+    outline: none;
+    transition: background 0.3s;
+    margin-left: 8px;
+}
+
+.opacity-slider:hover {
+    background: #bbb;
+}
+
+.opacity-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    background: #007bff;
+    border-radius: 50%;
+    cursor: pointer;
+    border: none;
+}
+
+.opacity-slider::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    background: #007bff;
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+}
+
+/* Spacing improvements */
+.layer-control .toggle-label {
+    margin-left: 12px;
+    color: #333;
+}
+
+/* Event controls background */
+.event-controls {
+    background-color: rgba(255, 255, 255, 0.8);
+}
+
+/* Date display color */
+.image-date-display {
+    color: #555;
+}
