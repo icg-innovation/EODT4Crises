@@ -144,6 +144,7 @@ def process_geotiff_image(tif_path, save_path, satellite, size=(512, 512), brigh
         # Create a PIL Image from the original numpy array and save it.
         Image.fromarray(img).save(save_path)
         logging.info("Saved processed image to: %s", save_path)
+        logging.info("... pixel size: %s", img.shape)
 
         try:
             from pyproj import Transformer

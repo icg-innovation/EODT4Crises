@@ -210,7 +210,7 @@ def get_roads():
     """
 
     try:
-        response = requests.post(overpass_url, data={"data": overpass_query}) # Use POST for multi-line queries
+        response = requests.post(overpass_url, data={"data": overpass_query})
         logging.info(f"Overpass API response status: {response.status_code}")
         response.raise_for_status()
         data = response.json()
@@ -256,7 +256,7 @@ def download_satellite_image():
     try:
         _, image_date = download_gee_image_near_date(
             lat_st, lon_st, lat_ed, lon_ed,
-            scale=10,
+            scale=5,
             output_path=geotiff_path,
             start_date=start_date,
             end_date=end_date,
@@ -303,9 +303,9 @@ def process_satellite_image():
 
         leaflet_bounds = [[bounds_4326[0], bounds_4326[2]], [bounds_4326[1], bounds_4326[3]]]
         image_url = f"/static/{png_filename}"
-        
+
         return jsonify({
-            "imageUrl": image_url, 
+            "imageUrl": image_url,
             "bounds": leaflet_bounds,
             "rawBounds": {
                 "lat_min": bounds_4326[0], "lat_max": bounds_4326[1],

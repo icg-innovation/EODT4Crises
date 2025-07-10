@@ -144,7 +144,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!drawnRectangle) return;
         const bbox = drawnRectangle.getBounds().toBBoxString();
         const types = getSelectedRoadTypes();
-        const historicalDate = midDateInput.value;
+        const historicalDate = startDateInput.value;
         if (!types) { osmRoadsLayer.clearLayers(); return; }
         showLoader('Fetching OSM Roads...');
         try {
