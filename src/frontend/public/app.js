@@ -134,12 +134,12 @@ document.addEventListener('DOMContentLoaded', () => {
     map.on(L.Draw.Event.DELETED, () => resetWorkflow(true));
 
     // CORRECTED: OSM roads are thinner and dashed
-    let osmRoadsLayer = L.geoJSON(null, { 
-        style: () => ({ color: '#ff0000', weight: 2, opacity: 0.8, dashArray: '5, 10' }) 
+    let osmRoadsLayer = L.geoJSON(null, {
+        style: () => ({ color: '#ff0000', weight: 2, opacity: 0.8, dashArray: '5, 10' })
     }).addTo(map);
 
     const getSelectedRoadTypes = () => Array.from(document.querySelectorAll('.road-type-filter:checked')).map(cb => cb.value).join(',');
-    
+
     const updateRoads = async () => {
         if (!drawnRectangle) return;
         const bbox = drawnRectangle.getBounds().toBBoxString();

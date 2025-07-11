@@ -24,10 +24,10 @@ input:checked + .slider:before { transform: translateX(26px); }
 .image-layer-card h4 { margin: 0 0 10px 0; font-size: 1em; }
 .delete-btn { font-size: 0.8em; padding: 2px 5px; background-color: #dc3545; }
 .delete-btn:hover { background-color: #c82333; }
-.collapsible-header { display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none; }
+.collapsible-header { display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none; font-weight: bold; padding: 5px 10px; background-color: #f8f9fa; border: 1px solid #ddd; border-radius: 4px; margin-bottom: 5px; }
 .collapsible-header .arrow { transition: transform 0.2s ease-in-out; }
 .collapsible-header.active .arrow { transform: rotate(180deg); }
-.collapsible-content { display: none; padding-top: 10px; }
+.collapsible-content { display: none; padding: 10px; border: 1px solid #ddd; border-radius: 4px; background-color: #ffffff; margin-bottom: 10px; }
 input[type="color"] { width: 40px; height: 25px; border: 1px solid #ccc; padding: 2px; }
 .event-controls { border: 1px solid #ccc; border-radius: 4px; padding: 10px; margin-top: 15px; }
 .event-controls h4 { margin-top: 0; }
