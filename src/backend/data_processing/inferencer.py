@@ -87,13 +87,13 @@ def get_batch_img_patches(img, batch_patch_info):
 
 def infer_one_img(net, img, config):
     # TODO(congrui): centralize these configs
-    image_size = img.shape[0]
+    img_h, img_w = img.shape[0], img.shape[1]
 
     batch_size = config.INFER_BATCH_SIZE
     # list of (i, (x_begin, y_begin), (x_end, y_end))
     all_patch_info = get_patch_info_one_img(
         0,
-        image_size,
+        (img_h, img_w), # Pass a tuple of (height, width)
         config.SAMPLE_MARGIN,
         config.PATCH_SIZE,
         config.INFER_PATCHES_PER_EDGE,

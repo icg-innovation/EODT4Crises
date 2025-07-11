@@ -61,16 +61,30 @@ def south_uk_data_partition():
 
 
 def get_patch_info_one_img(
-    image_index, image_size, sample_margin, patch_size, patches_per_edge
+    image_index, image_dims, sample_margin, patch_size, patches_per_edge
 ):
+    # --- START OF FIX ---
+    # Unpack the height and width from the image_dims tuple
+    img_h, img_w = image_dims
     patch_info = []
     sample_min = sample_margin
-    sample_max = image_size - (patch_size + sample_margin)
-    eval_samples = np.linspace(start=sample_min, stop=sample_max, num=patches_per_edge)
-    eval_samples = [round(x) for x in eval_samples]
-    for x in eval_samples:
-        for y in eval_samples:
+
+    # Calculate separate sample points for the X-axis (width)
+    sample_max_x = img_w - (patch_size + sample_margin)
+    eval_samples_x = np.linspace(start=sample_min, stop=sample_max_x, num=patches_per_edge)
+    eval_samples_x = [round(x) for x in eval_samples_x]
+
+    # Calculate separate sample points for the Y-axis (height)
+    sample_max_y = img_h - (patch_size + sample_margin)
+    eval_samples_y = np.linspace(start=sample_min, stop=sample_max_y, num=patches_per_edge)
+    eval_samples_y = [round(y) for y in eval_samples_y]
+
+    # Iterate over the Y and X samples separately to build a rectangular grid
+    for y in eval_samples_y:
+        for x in eval_samples_x:
             patch_info.append((image_index, (x, y), (x + patch_size, y + patch_size)))
+    # --- END OF FIX ---
+    
     return patch_info
 
 
