@@ -16,7 +16,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const API_BASE_URL = 'http://localhost:4000';
     let drawnRectangle = null;
 
-    // MODIFIED: We now use ...Group to hold the two layers (casing + main line)
     let analysisState = {
         gtMaskLayer: null,
         damageLayerGroup: null, 
@@ -25,7 +24,8 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const loader = document.getElementById('loader');
-    const generateImagesBtn = document.getElementById('generateImagesBtn');
+    const generatePreImagesBtn = document.getElementById('generatePreImagesBtn');
+    const generatePostImagesBtn = document.getElementById('generatePostImagesBtn');
     const generateGTMaskBtn = document.getElementById('generateGTMaskBtn');
     const updateRoadsBtn = document.getElementById('updateRoadsBtn');
     const compareRoadsBtn = document.getElementById('compareRoadsBtn');
@@ -63,7 +63,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (analysisState[prefix].predGraphGroup) analysisState[prefix].predGraphGroup.remove();
 
             analysisState[prefix] = { satLayer: null, predMaskLayer: null, predGraphGroup: null, imageUrl: null, bounds: null, rawBounds: null, satellite: null };
-            document.getElementById(`${prefix}EventControls`).style.display = 'none';
             document.getElementById(`${prefix}DetectionControls`).style.display = 'none';
             document.getElementById(`run${prefix.charAt(0).toUpperCase() + prefix.slice(1)}DetectionBtn`).disabled = true;
         });
@@ -81,15 +80,53 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('postPredMaskOpacitySlider').value = 0.7;
         document.getElementById('togglePostPredGraph').checked = true;
         document.getElementById('toggleDamageLayer').checked = true;
-        document.getElementById('damageOpacitySlider').value = 0.9;
 
         if (fullReset) {
-            generateImagesBtn.disabled = true;
             if(drawnItems) drawnItems.clearLayers();
             if(osmRoadsLayer) osmRoadsLayer.clearLayers();
             drawnRectangle = null;
         }
     };
+    
+    function resetPreLayers() {
+        const pre = analysisState.pre;
+        if (pre.satLayer) pre.satLayer.remove();
+        if (pre.predMaskLayer) pre.predMaskLayer.remove();
+        if (pre.predGraphGroup) pre.predGraphGroup.remove();
+    
+        analysisState.pre = {
+            satLayer: null,
+            predMaskLayer: null,
+            predGraphGroup: null,
+            imageUrl: null,
+            bounds: null,
+            rawBounds: null,
+            satellite: null
+        };
+    
+        document.getElementById('preDetectionControls').style.display = 'none';
+        document.getElementById('runPreDetectionBtn').disabled = true;
+    }
+    
+    function resetPostLayers() {
+        const post = analysisState.post;
+        if (post.satLayer) post.satLayer.remove();
+        if (post.predMaskLayer) post.predMaskLayer.remove();
+        if (post.predGraphGroup) post.predGraphGroup.remove();
+    
+        analysisState.post = {
+            satLayer: null,
+            predMaskLayer: null,
+            predGraphGroup: null,
+            imageUrl: null,
+            bounds: null,
+            rawBounds: null,
+            satellite: null
+        };
+    
+        document.getElementById('postDetectionControls').style.display = 'none';
+        document.getElementById('runPostDetectionBtn').disabled = true;
+    }    
 
     const updateRectangleInfo = (layer) => {
         const bounds = layer.getBounds();
@@ -114,7 +151,8 @@ document.addEventListener('DOMContentLoaded', () => {
         resetWorkflow(true);
         drawnRectangle = event.layer;
         drawnItems.addLayer(drawnRectangle);
-        generateImagesBtn.disabled = false;
+        generatePreImagesBtn.disabled = false;
+        generatePostImagesBtn.disabled = false;
         updateRoads();
         updateRectangleInfo(drawnRectangle);
     });
@@ -126,14 +164,14 @@ document.addEventListener('DOMContentLoaded', () => {
             updateRectangleInfo(layer);
         });
         if (drawnRectangle) {
-            generateImagesBtn.disabled = false;
+            generatePreImagesBtn.disabled = false;
+            generatePostImagesBtn.disabled = false;
             updateRoads();
         }
     });
 
     map.on(L.Draw.Event.DELETED, () => resetWorkflow(true));
 
-    // CORRECTED: OSM roads are thinner and dashed
     let osmRoadsLayer = L.geoJSON(null, {
         style: () => ({ color: '#ff0000', weight: 2, opacity: 0.8, dashArray: '5, 10' })
     }).addTo(map);
@@ -157,9 +195,9 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     updateRoadsBtn.addEventListener('click', updateRoads);
 
-    generateImagesBtn.addEventListener('click', async () => {
+    generatePreImagesBtn.addEventListener('click', async () => {
         if (!drawnRectangle) { alert('Please draw a rectangle on the map first.'); return; }
-        resetWorkflow();
+        resetPreLayers();
         const bbox = drawnRectangle.getBounds().toBBoxString();
         const satellite = satelliteSelect.value;
         let cloudCover = undefined;
@@ -179,16 +217,9 @@ document.addEventListener('DOMContentLoaded', () => {
             showLoader('Fetching Pre-Event image...');
             const preImageResult = await fetchAndProcessImage('pre', { ...commonParams, start_date: startDateInput.value, end_date: midDateInput.value, target_date: midDateInput.value });
             if (preImageResult) {
-                document.getElementById('preEventControls').style.display = 'block';
                 document.getElementById('runPreDetectionBtn').disabled = false;
             }
-            showLoader('Fetching Post-Event image...');
-            const postImageResult = await fetchAndProcessImage('post', { ...commonParams, start_date: midDateInput.value, end_date: endDateInput.value, target_date: midDateInput.value });
-            if (postImageResult) {
-                document.getElementById('postEventControls').style.display = 'block';
-                document.getElementById('runPostDetectionBtn').disabled = false;
-            }
-            if (preImageResult || postImageResult) {
+            if (preImageResult) {
                 generateGTMaskBtn.disabled = false;
                 map.fitBounds(analysisState.pre.bounds || analysisState.post.bounds);
             } else {
@@ -197,6 +228,37 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (error) { console.error('Error generating images:', error); alert(`Error: ${error.message}`);
         } finally { hideLoader(); }
     });
+
+    generatePostImagesBtn.addEventListener('click', async () => {
+        if (!drawnRectangle) { alert('Please draw a rectangle on the map first.'); return; }
+        resetPostLayers();
+        const bbox = drawnRectangle.getBounds().toBBoxString();
+        const satellite = satelliteSelect.value;
+        let cloudCover = undefined;
+        if (satellite === 'sentinel_2') {
+            cloudCover = cloudCoverSlider.value;
+        } else if (satellite === 'sentinel_2_nir') {
+            cloudCover = cloudCoverSliderNIR.value;
+        }
+        const commonParams = {
+            bbox: bbox,
+            satellite: satellite,
+            cloudy_pixel_percentage: cloudCover,
+            polarization: satellite === 'sentinel_1' ? polarizationSelect.value : undefined
+        };
+        try {
+            showLoader('Fetching Post-Event image...');
+            const postImageResult = await fetchAndProcessImage('post', { ...commonParams, start_date: midDateInput.value, end_date: endDateInput.value, target_date: midDateInput.value });
+            if (postImageResult) {
+                document.getElementById('runPostDetectionBtn').disabled = false;
+                map.fitBounds(analysisState.post.bounds || analysisState.pre.bounds);
+            } else {
+                alert('Could not find any images for the selected dates and area.');
+            }
+        } catch (error) { console.error('Error generating images:', error); alert(`Error: ${error.message}`);
+        } finally { hideLoader(); }
+    }
+    );
 
     generateGTMaskBtn.addEventListener('click', async () => {
         const imageState = analysisState.pre.rawBounds ? analysisState.pre : analysisState.post;
@@ -243,7 +305,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // CORRECTED: This function now correctly creates two layers for casing.
     async function runDetection(prefix) {
         if (!analysisState[prefix].imageUrl) { alert(`Generate the ${prefix}-event satellite image first.`); return; }
         showLoader(`Running ${prefix}-event detection...`);
@@ -255,21 +316,17 @@ document.addEventListener('DOMContentLoaded', () => {
             if (analysisState[prefix].predGraphGroup) analysisState[prefix].predGraphGroup.remove();
             if (analysisState[prefix].predMaskLayer) analysisState[prefix].predMaskLayer.remove();
             
-            // Define the styles for casing and the main line
             const styles = {
-                pre: { color: '#00ffff', weight: 3 },  // Cyan for pre-event
-                post: { color: '#ff00ff', weight: 3 } // Magenta for post-event
+                pre: { color: '#00ffff', weight: 3 },
+                post: { color: '#ff00ff', weight: 3 }
             };
             const casingStyle = { color: '#000000', weight: styles[prefix].weight + 2, opacity: 0.7 };
             const mainStyle = { ...styles[prefix], opacity: 1 };
 
-            // Create two separate GeoJSON layers
             const casingLayer = L.geoJSON(data.geojson, { style: casingStyle });
             const mainLayer = L.geoJSON(data.geojson, { style: mainStyle });
 
-            // Group them together to be treated as a single entity
             analysisState[prefix].predGraphGroup = L.featureGroup([casingLayer, mainLayer]).addTo(map);
-
             analysisState[prefix].predMaskLayer = L.imageOverlay(data.maskUrl, analysisState[prefix].bounds, { opacity: 0.7 }).addTo(map);
             document.getElementById(`${prefix}DetectionControls`).style.display = 'block';
 
@@ -280,7 +337,6 @@ document.addEventListener('DOMContentLoaded', () => {
         } finally { hideLoader(); }
     }
     
-    // CORRECTED: This function also uses the two-layer method for casing.
     compareRoadsBtn.addEventListener('click', async () => {
         if (!drawnRectangle) { alert('Please draw an area of interest first.'); return; }
         if (!analysisState.pre.predGraphGroup || !analysisState.post.predGraphGroup) {
@@ -299,18 +355,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (analysisState.damageLayerGroup) analysisState.damageLayerGroup.remove();
             
-            // Define styles for the damaged roads layer
             const casingStyle = { color: '#000000', weight: 7, opacity: 0.8 };
             const mainStyle = { color: '#FFD700', weight: 5, opacity: 1 };
 
-            // Create the two layers and group them
             const casingLayer = L.geoJSON(data.geojson, { style: casingStyle });
             const mainLayer = L.geoJSON(data.geojson, { style: mainStyle });
             analysisState.damageLayerGroup = L.featureGroup([casingLayer, mainLayer]).addTo(map);
             
             damageAnalysisControls.style.display = 'block';
 
-            // --- UI improvement to focus the user ---
             if (analysisState.pre.predGraphGroup) map.removeLayer(analysisState.pre.predGraphGroup);
             document.getElementById('togglePrePredGraph').checked = false;
             if (analysisState.post.predGraphGroup) map.removeLayer(analysisState.post.predGraphGroup);
@@ -334,9 +387,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('toggleGtMask').addEventListener('change', (e) => map.toggleLayer(analysisState.gtMaskLayer, e.target.checked));
     document.getElementById('gtMaskOpacitySlider').addEventListener('input', (e) => { if (analysisState.gtMaskLayer) analysisState.gtMaskLayer.setOpacity(e.target.value); });
 
-    // MODIFIED: Opacity slider now acts on the group
     document.getElementById('toggleDamageLayer').addEventListener('change', (e) => map.toggleLayer(analysisState.damageLayerGroup, e.target.checked));
-    document.getElementById('damageOpacitySlider').addEventListener('input', (e) => { if (analysisState.damageLayerGroup) analysisState.damageLayerGroup.setOpacity(e.target.value); });
 
 
     L.Map.prototype.toggleLayer = (layer, show) => { if (layer) { if (show) map.addLayer(layer); else map.removeLayer(layer); } };
@@ -348,7 +399,6 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById(`toggle${prefix.charAt(0).toUpperCase() + prefix.slice(1)}PredMask`).addEventListener('change', (e) => map.toggleLayer(analysisState[prefix].predMaskLayer, e.target.checked));
         document.getElementById(`${prefix}PredMaskOpacitySlider`).addEventListener('input', (e) => { if (analysisState[prefix].predMaskLayer) analysisState[prefix].predMaskLayer.setOpacity(e.target.value); });
         
-        // MODIFIED: Toggle and opacity now act on the ...Group
         document.getElementById(`toggle${prefix.charAt(0).toUpperCase() + prefix.slice(1)}PredGraph`).addEventListener('change', (e) => map.toggleLayer(analysisState[prefix].predGraphGroup, e.target.checked));
     });
 

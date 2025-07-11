@@ -14,11 +14,11 @@
 
     <div class="title-overlay">EODT4Crises Road Identification</div>
 
-    <div class="logo-container" style="position: absolute; bottom: 10px; left: 10px; z-index: 1000;">
+    <div class="logo-container">
         <img src="eodt4crisis_logo.jpg" alt="EODT4Crises Logo" style="width: 100px; height: auto;">
     </div>
 
-    <div id="baseMapToggleContainer" style="position: absolute; bottom: 30px; right: 10px; z-index: 1000;">
+    <div id="baseMapToggleContainer">
         <label class="switch"><input type="checkbox" id="baseMapToggle" checked><span class="slider round"></span></label>
         <span class="toggle-label">Base Map</span>
     </div>
@@ -30,65 +30,17 @@
                 <label class="switch"><input type="checkbox" id="roadToggle" checked><span class="slider round"></span></label>
                 <span class="toggle-label">Toggle Roads</span>
             </div>
-            <label><input type="checkbox" class="road-type-filter" value="motorway" checked> Motorway</label>
-            <label><input type="checkbox" class="road-type-filter" value="motorway_link" checked> Motorway Link</label>
-            <label><input type="checkbox" class="road-type-filter" value="trunk" checked> Trunk</label>
-            <label><input type="checkbox" class="road-type-filter" value="trunk_link" checked> Trunk Link</label>
-            <label><input type="checkbox" class="road-type-filter" value="primary" checked> Primary</label>
-            <label><input type="checkbox" class="road-type-filter" value="secondary" checked> Secondary</label>
-            <label><input type="checkbox" class="road-type-filter" value="tertiary" unchecked> Tertiary</label>
-            <label><input type="checkbox" class="road-type-filter" value="residential" unchecked> Residential</label>
-            <label><input type="checkbox" class="road-type-filter" value="unclassified" unchecked> Unclassified</label>
+            <div><label><input type="checkbox" class="road-type-filter" value="motorway" checked> Motorway</label></div>
+            <div><label><input type="checkbox" class="road-type-filter" value="motorway_link" checked> Motorway Link</label></div>
+            <div><label><input type="checkbox" class="road-type-filter" value="trunk" checked> Trunk</label></div>
+            <div><label><input type="checkbox" class="road-type-filter" value="trunk_link" checked> Trunk Link</label></div>
+            <div><label><input type="checkbox" class="road-type-filter" value="primary" checked> Primary</label></div>
+            <div><label><input type="checkbox" class="road-type-filter" value="secondary" checked> Secondary</label></div>
+            <div><label><input type="checkbox" class="road-type-filter" value="tertiary" unchecked> Tertiary</label></div>
+            <div><label><input type="checkbox" class="road-type-filter" value="residential" unchecked> Residential</label></div>
+            <div><label><input type="checkbox" class="road-type-filter" value="unclassified" unchecked> Unclassified</label></div>
             <button id="updateRoadsBtn" class="action-button">Update Roads</button>
-        </div>
-
-        <div class="analysis-workflow section-divider">
-            <div class="collapsible-header"><strong>Satellite Imagery</strong><span class="arrow">▼</span></div>
-            <div class="collapsible-content">
-                <div class="satellite-selection">
-                    <label for="satelliteSelect"><strong>Satellite Picker:</strong></label>
-                    <select id="satelliteSelect" style="width: 100%; padding: 5px; margin-top: 5px;">
-                        <option value="sentinel_2" selected>Sentinel-2</option>
-                        <option value="sentinel_2_nir">Sentinel-2 NIR</option>
-                        <option value="sentinel_1">Sentinel-1</option>
-                    </select>
-                </div>
-                <div id="sentinel2Options" class="satellite-options" style="margin-top: 10px;">
-                    <label for="cloudCoverSlider">Cloud Cover (%): <span id="cloudCoverValue">10</span>%</label>
-                    <input type="range" id="cloudCoverSlider" min="0" max="100" value="10" style="width: 100%;">
-                </div>
-                <div id="sentinel2NIROptions" class="satellite-options" style="margin-top: 10px; display: none;">
-                    <label for="cloudCoverSliderNIR">Cloud Cover (%): <span id="cloudCoverValueNIR">10</span>%</label>
-                    <input type="range" id="cloudCoverSliderNIR" min="0" max="100" value="10" style="width: 100%;">
-                </div>
-                <div id="sentinel1Options" class="satellite-options" style="display: none; margin-top: 10px;">
-                    <label for="polarizationSelect">Polarization:</label>
-                    <select id="polarizationSelect" style="width: 100%; padding: 5px; margin-top: 5px;">
-                        <option value="VV" selected>VV</option>
-                        <option value="VH">VH</option>
-                    </select>
-                </div>
-            </div>
-
-            <div class="collapsible-header"><strong>Date Picker</strong><span class="arrow">▼</span></div>
-            <div class="collapsible-content">
-                <div class="date-control-item" style="margin-top: 15px;">
-                    <label for="startDate">Start Date:</label>
-                    <input type="date" id="startDate" style="width: 100%;">
-                </div>
-                <div class="date-control-item">
-                    <label for="midDate">Event Date:</label>
-                    <input type="date" id="midDate" style="width: 100%;">
-                </div>
-                <div class="date-control-item">
-                    <label for="endDate">End Date:</label>
-                    <input type="date" id="endDate" style="width: 100%;">
-                </div>
-            </div>
-
-            <button id="generateImagesBtn" class="action-button" disabled>Retrieve Satellite Images</button>
             <button id="generateGTMaskBtn" class="action-button" disabled>Generate OSM Ground Truth Mask</button>
-
             <div id="gtMaskControls" class="event-controls" style="display: none; border-color: #28a745;">
                 <h4 style="color: #28a745;">Ground Truth (OSM)</h4>
                 <div class="layer-control">
@@ -96,20 +48,65 @@
                     <span class="toggle-label">Ground Truth Mask</span>
                 </div>
                 <div class="layer-control">
-                    <label class="toggle-label">Opacity:</label>
+                    <label for="gtMaskOpacitySlider">Opacity:</label>
                     <input type="range" id="gtMaskOpacitySlider" min="0" max="1" step="0.05" value="0.7" class="opacity-slider">
                 </div>
             </div>
+        </div>
 
-            <div id="preEventControls" class="event-controls" style="display: none;">
-                <h4>Pre-Event</h4>
+        <div class="analysis-workflow">
+            <div class="collapsible-header"><strong>Satellite Imagery</strong><span class="arrow">▼</span></div>
+            <div class="collapsible-content">
+                <div class="satellite-selection">
+                    <select id="satelliteSelect">
+                        <option value="sentinel_2" selected>Sentinel-2</option>
+                        <option value="sentinel_2_nir">Sentinel-2 NIR</option>
+                        <option value="sentinel_1">Sentinel-1</option>
+                    </select>
+                </div>
+                <div id="sentinel2Options" class="satellite-options">
+                    <label for="cloudCoverSlider">Cloud Cover (%): <span id="cloudCoverValue">10</span>%</label>
+                    <input type="range" id="cloudCoverSlider" min="0" max="100" value="10">
+                </div>
+                <div id="sentinel2NIROptions" class="satellite-options" style="display: none;">
+                    <label for="cloudCoverSliderNIR">Cloud Cover (%): <span id="cloudCoverValueNIR">10</span>%</label>
+                    <input type="range" id="cloudCoverSliderNIR" min="0" max="100" value="10">
+                </div>
+                <div id="sentinel1Options" class="satellite-options" style="display: none;">
+                    <label for="polarizationSelect">Polarization:</label>
+                    <select id="polarizationSelect">
+                        <option value="VV" selected>VV</option>
+                        <option value="VH">VH</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="collapsible-header"><strong>Date</strong><span class="arrow">▼</span></div>
+            <div class="collapsible-content">
+                <div class="date-control-item">
+                    <label for="startDate">Start:</label>
+                    <input type="date" id="startDate">
+                </div>
+                <div class="date-control-item">
+                    <label for="midDate">Event: </label>
+                    <input type="date" id="midDate">
+                </div>
+                <div class="date-control-item">
+                    <label for="endDate">End: </label>
+                    <input type="date" id="endDate">
+                </div>
+            </div>
+
+            <div class="collapsible-header"><strong>Pre-Event</strong><span class="arrow">▼</span></div>
+            <div class="collapsible-content">
+                <button id="generatePreImagesBtn" class="action-button" disabled>Retrieve Satellite Image</button>
                 <p id="preImageDateDisplay" class="image-date-display"></p>
                 <div class="layer-control">
                     <label class="switch"><input type="checkbox" id="togglePreSat" checked><span class="slider round"></span></label>
                     <span class="toggle-label">Satellite Image</span>
                 </div>
                 <div class="layer-control">
-                    <label class="toggle-label">Opacity:</label>
+                    <label for="preOpacitySlider">Opacity:</label>
                     <input type="range" id="preOpacitySlider" min="0" max="1" step="0.05" value="0.8" class="opacity-slider">
                 </div>
                 <button id="runPreDetectionBtn" class="action-button" disabled>Run Pre-Event Detection</button>
@@ -119,7 +116,7 @@
                         <span class="toggle-label">Mask</span>
                     </div>
                     <div class="layer-control">
-                        <label class="toggle-label">Opacity:</label>
+                        <label for="prePredMaskOpacitySlider">Opacity:</label>
                         <input type="range" id="prePredMaskOpacitySlider" min="0" max="1" step="0.05" value="0.7" class="opacity-slider">
                     </div>
                     <div class="layer-control">
@@ -129,15 +126,16 @@
                 </div>
             </div>
 
-            <div id="postEventControls" class="event-controls" style="display: none;">
-                <h4>Post-Event</h4>
+            <div class="collapsible-header"><strong>Post-Event</strong><span class="arrow">▼</span></div>
+            <div class="collapsible-content">
+                <button id="generatePostImagesBtn" class="action-button" disabled>Retrieve Satellite Image</button>
                 <p id="postImageDateDisplay" class="image-date-display"></p>
                 <div class="layer-control">
                     <label class="switch"><input type="checkbox" id="togglePostSat" checked><span class="slider round"></span></label>
                     <span class="toggle-label">Satellite Image</span>
                 </div>
                 <div class="layer-control">
-                    <label class="toggle-label">Opacity:</label>
+                    <label for="postOpacitySlider">Opacity:</label>
                     <input type="range" id="postOpacitySlider" min="0" max="1" step="0.05" value="0.8" class="opacity-slider">
                 </div>
                 <button id="runPostDetectionBtn" class="action-button" disabled>Run Post-Event Detection</button>
@@ -147,7 +145,7 @@
                         <span class="toggle-label">Mask</span>
                     </div>
                     <div class="layer-control">
-                        <label class="toggle-label">Opacity:</label>
+                        <label for="postPredMaskOpacitySlider">Opacity:</label>
                         <input type="range" id="postPredMaskOpacitySlider" min="0" max="1" step="0.05" value="0.7" class="opacity-slider">
                     </div>
                     <div class="layer-control">
@@ -156,17 +154,15 @@
                     </div>
                 </div>
             </div>
-            
-            <button id="compareRoadsBtn" class="action-button" disabled>Analyze Road Damage</button>
-            <div id="damageAnalysisControls" class="event-controls" style="display: none; border-color: #dc3545;">
-                <h4 style="color: #dc3545;">Damage Analysis</h4>
-                <div class="layer-control">
-                    <label class="switch"><input type="checkbox" id="toggleDamageLayer" checked><span class="slider round"></span></label>
-                    <span class="toggle-label">Damaged Roads</span>
-                </div>
-                <div class="layer-control">
-                    <label class="toggle-label">Opacity:</label>
-                    <input type="range" id="damageOpacitySlider" min="0" max="1" step="0.05" value="0.9" class="opacity-slider">
+
+            <div class="collapsible-header"><strong>Damage Analysis</strong><span class="arrow">▼</span></div>
+            <div class="collapsible-content">
+                <button id="compareRoadsBtn" class="action-button" disabled>Analyze Road Damage</button>
+                <div id="damageAnalysisControls" class="event-controls" style="display: none; border-color: #dc3545; margin-top: 10px;">
+                    <div class="layer-control">
+                        <label class="switch"><input type="checkbox" id="toggleDamageLayer" checked><span class="slider round"></span></label>
+                        <span class="toggle-label">Damaged Roads</span>
+                    </div>
                 </div>
             </div>
 
