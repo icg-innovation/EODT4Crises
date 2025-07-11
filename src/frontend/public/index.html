@@ -14,9 +14,9 @@
 
     <!-- <div class="title-overlay">EODT4Crises Road Identification</div> -->
 
-    <div class="logo-container">
+    <!-- <div class="logo-container">
         <img src="eodt4crisis_logo.jpg" alt="EODT4Crises Logo" style="width: 100px; height: auto;">
-    </div>
+    </div> -->
 
     <div id="baseMapToggleContainer">
         <label class="switch"><input type="checkbox" id="baseMapToggle" checked><span class="slider round"></span></label>
@@ -40,6 +40,29 @@
         <div class="legend-item">
             <i class="legend-color-damage"></i>
             <span>Damaged Roads</span>
+        </div>
+    </div>
+
+    <div id="download-panel">
+        <div class="collapsible-header">
+            <strong>Downloads</strong>
+            <span class="arrow">▼</span>
+        </div>
+        <div class="collapsible-content" style="display: none;">
+            <ul id="download-list">
+                <li><a href="#" id="download-osm-geojson" class="download-link disabled">OSM Roads (GeoJSON)</a></li>
+                <li><a href="#" id="download-gt-mask" class="download-link disabled">Ground Truth Mask (PNG)</a></li>
+                <hr>
+                <li><a href="#" id="download-pre-sat" class="download-link disabled">Pre-Event Satellite (PNG)</a></li>
+                <li><a href="#" id="download-pre-mask" class="download-link disabled">Pre-Event Mask (PNG)</a></li>
+                <li><a href="#" id="download-pre-geojson" class="download-link disabled">Pre-Event Roads (GeoJSON)</a></li>
+                <hr>
+                <li><a href="#" id="download-post-sat" class="download-link disabled">Post-Event Satellite (PNG)</a></li>
+                <li><a href="#" id="download-post-mask" class="download-link disabled">Post-Event Mask (PNG)</a></li>
+                <li><a href="#" id="download-post-geojson" class="download-link disabled">Post-Event Roads (GeoJSON)</a></li>
+                <hr>
+                <li><a href="#" id="download-damage-geojson" class="download-link disabled">Damaged Roads (GeoJSON)</a></li>
+            </ul>
         </div>
     </div>
 

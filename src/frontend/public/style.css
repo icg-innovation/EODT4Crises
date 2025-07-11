@@ -372,3 +372,50 @@ input:checked + .slider:before {
     background-color: var(--damage-color);
     border: 1px solid var(--casing-color);
 }
+
+/* Download Panel Styling */
+/* Replace with this... */
+#download-panel {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 1001;
+    width: 220px;
+}
+
+#download-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+#download-list hr {
+    border: none;
+    border-top: 1px solid var(--medium-gray);
+    margin: 8px 0;
+}
+
+.download-link {
+    display: block;
+    padding: 4px 0;
+    text-decoration: none;
+    font-size: 0.9em;
+    transition: background-color 0.2s;
+}
+
+/* Style for links when they are not yet available */
+.download-link.disabled {
+    color: #999;
+    pointer-events: none; /* Prevents clicking */
+    cursor: default;
+}
+
+/* Style for active download links */
+.download-link:not(.disabled) {
+    color: var(--primary-color);
+    cursor: pointer;
+}
+
+.download-link:not(.disabled):hover {
+    text-decoration: underline;
+}

@@ -67,6 +67,18 @@ document.addEventListener('DOMContentLoaded', () => {
     const showLoader = (text = 'Processing...') => { loader.textContent = text; loader.style.display = 'flex'; };
     const hideLoader = () => loader.style.display = 'none';
 
+    const downloadLinks = {
+        osmGeoJSON: document.getElementById('download-osm-geojson'),
+        gtMask: document.getElementById('download-gt-mask'),
+        preSat: document.getElementById('download-pre-sat'),
+        preMask: document.getElementById('download-pre-mask'),
+        preGeoJSON: document.getElementById('download-pre-geojson'),
+        postSat: document.getElementById('download-post-sat'),
+        postMask: document.getElementById('download-post-mask'),
+        postGeoJSON: document.getElementById('download-post-geojson'),
+        damageGeoJSON: document.getElementById('download-damage-geojson'),
+    };
+
     const resetWorkflow = (fullReset = false) => {
         if (analysisState.gtMaskLayer) analysisState.gtMaskLayer.remove();
         if (analysisState.damageLayerGroup) analysisState.damageLayerGroup.remove();
@@ -103,6 +115,12 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('postPredMaskOpacitySlider').value = 0.7;
         document.getElementById('togglePostPredGraph').checked = true;
         document.getElementById('toggleDamageLayer').checked = true;
+
+        Object.values(downloadLinks).forEach(link => {
+            link.classList.add('disabled');
+            link.href = '#';
+            link.removeAttribute('download');
+        });
 
         if (fullReset) {
             if(drawnItems) drawnItems.clearLayers();
@@ -211,9 +229,21 @@ document.addEventListener('DOMContentLoaded', () => {
             const params = new URLSearchParams({ bbox: bbox, types: types, date: historicalDate });
             const response = await fetch(`${API_BASE_URL}/api/get_roads?${params.toString()}`);
             if (!response.ok) throw new Error('Failed to fetch OSM roads');
-            osmRoadsLayer.clearLayers().addData(await response.json());
-        } catch (error) { console.error('Error updating roads:', error); alert('Could not load OSM road data.');
-        } finally { hideLoader(); }
+            const geojsonData = await response.json();
+            osmRoadsLayer.clearLayers().addData(geojsonData);
+
+            // NEW: Activate the OSM GeoJSON download link
+            const blob = new Blob([JSON.stringify(geojsonData, null, 2)], { type: 'application/json' });
+            downloadLinks.osmGeoJSON.href = URL.createObjectURL(blob);
+            downloadLinks.osmGeoJSON.download = `osm_roads_${historicalDate}.geojson`;
+            downloadLinks.osmGeoJSON.classList.remove('disabled');
+
+        } catch (error) {
+            console.error('Error updating roads:', error);
+            alert('Could not load OSM road data.');
+        } finally {
+            hideLoader();
+        }
     };
     updateRoadsBtn.addEventListener('click', updateRoads);
 
@@ -307,6 +337,10 @@ document.addEventListener('DOMContentLoaded', () => {
             analysisState.gtMaskLayer = L.imageOverlay(data.maskUrl, imageState.bounds, { opacity: 0.7 }).addTo(map);
             gtMaskControls.style.display = 'block';
 
+            downloadLinks.gtMask.href = data.maskUrl;
+            downloadLinks.gtMask.download = `ground_truth_mask.png`;
+            downloadLinks.gtMask.classList.remove('disabled');
+
         } catch (error) {
             console.error("GT Mask Error:", error);
             alert(`GT Mask generation failed: ${error.message}`);
@@ -330,6 +364,12 @@ document.addEventListener('DOMContentLoaded', () => {
             analysisState[prefix].satellite = params.satellite;
             analysisState[prefix].satLayer = L.imageOverlay(processData.imageUrl, processData.bounds, { opacity: 0.8 }).addTo(map);
             document.getElementById(`${prefix}ImageDateDisplay`).innerHTML = `<b>Image Date:</b> ${downloadData.imageDate}`;
+
+            const linkElement = (prefix === 'pre') ? downloadLinks.preSat : downloadLinks.postSat;
+            linkElement.href = processData.imageUrl;
+            linkElement.download = `${prefix}_event_satellite.png`;
+            linkElement.classList.remove('disabled');
+
             return true;
         } catch (error) {
             console.error(`Error for ${prefix}-event image:`, error);
@@ -366,6 +406,18 @@ document.addEventListener('DOMContentLoaded', () => {
             if (analysisState.pre.predGraphGroup && analysisState.post.predGraphGroup) {
                 compareRoadsBtn.disabled = false;
             }
+
+            const maskLink = (prefix === 'pre') ? downloadLinks.preMask : downloadLinks.postMask;
+            maskLink.href = data.maskUrl;
+            maskLink.download = `${prefix}_event_prediction_mask.png`;
+            maskLink.classList.remove('disabled');
+
+            const geojsonLink = (prefix === 'pre') ? downloadLinks.preGeoJSON : downloadLinks.postGeoJSON;
+            const blob = new Blob([JSON.stringify(data.geojson, null, 2)], { type: 'application/json' });
+            geojsonLink.href = URL.createObjectURL(blob);
+            geojsonLink.download = `${prefix}_event_predicted_roads.geojson`;
+            geojsonLink.classList.remove('disabled');
+
         } catch (error) { console.error(`${prefix} Detection Error:`, error); alert(`Detection failed: ${error.message}`);
         } finally { hideLoader(); }
     }
@@ -409,6 +461,11 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('togglePostPredGraph').checked = false;
             map.addLayer(analysisState.damageLayerGroup);
             document.getElementById('toggleDamageLayer').checked = true;
+            
+            const blob = new Blob([JSON.stringify(data.geojson, null, 2)], { type: 'application/json' });
+            downloadLinks.damageGeoJSON.href = URL.createObjectURL(blob);
+            downloadLinks.damageGeoJSON.download = 'damaged_roads.geojson';
+            downloadLinks.damageGeoJSON.classList.remove('disabled');
 
         } catch (error) {
             console.error('Damage Analysis Error:', error);
