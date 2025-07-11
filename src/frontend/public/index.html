@@ -23,6 +23,26 @@
         <span class="toggle-label">Base Map</span>
     </div>
 
+    <div id="legend">
+        <h4>Legend</h4>
+        <div class="legend-item">
+            <i class="legend-color-osm"></i>
+            <span>OSM Roads</span>
+        </div>
+        <div class="legend-item">
+            <i class="legend-color-pre"></i>
+            <span>Pre-Event Roads</span>
+        </div>
+        <div class="legend-item">
+            <i class="legend-color-post"></i>
+            <span>Post-Event Roads</span>
+        </div>
+        <div class="legend-item">
+            <i class="legend-color-damage"></i>
+            <span>Damaged Roads</span>
+        </div>
+    </div>
+
     <div class="controls-container">
         <div class="collapsible-header"><strong>OSM Roads</strong><span class="arrow">▼</span></div>
         <div class="collapsible-content">
@@ -100,16 +120,18 @@
             <div class="collapsible-header"><strong>Pre-Event</strong><span class="arrow">▼</span></div>
             <div class="collapsible-content">
                 <button id="generatePreImagesBtn" class="action-button" disabled>Retrieve Satellite Image</button>
-                <p id="preImageDateDisplay" class="image-date-display"></p>
-                <div class="layer-control">
-                    <label class="switch"><input type="checkbox" id="togglePreSat" checked><span class="slider round"></span></label>
-                    <span class="toggle-label">Satellite Image</span>
-                </div>
-                <div class="layer-control">
-                    <label for="preOpacitySlider">Opacity:</label>
-                    <input type="range" id="preOpacitySlider" min="0" max="1" step="0.05" value="0.8" class="opacity-slider">
-                </div>
                 <button id="runPreDetectionBtn" class="action-button" disabled>Run Pre-Event Detection</button>
+                <p id="preImageDateDisplay" class="image-date-display"></p>
+                <div id="preSatControls" style="display: none;">
+                    <div class="layer-control">
+                        <label class="switch"><input type="checkbox" id="togglePreSat" checked><span class="slider round"></span></label>
+                        <span class="toggle-label">Satellite Image</span>
+                    </div>
+                    <div class="layer-control">
+                        <label for="preOpacitySlider">Opacity:</label>
+                        <input type="range" id="preOpacitySlider" min="0" max="1" step="0.05" value="0.8" class="opacity-slider">
+                    </div>
+                </div>
                 <div id="preDetectionControls" class="detection-controls" style="display: none;">
                     <div class="layer-control">
                         <label class="switch"><input type="checkbox" id="togglePrePredMask" checked><span class="slider round"></span></label>
@@ -129,16 +151,18 @@
             <div class="collapsible-header"><strong>Post-Event</strong><span class="arrow">▼</span></div>
             <div class="collapsible-content">
                 <button id="generatePostImagesBtn" class="action-button" disabled>Retrieve Satellite Image</button>
-                <p id="postImageDateDisplay" class="image-date-display"></p>
-                <div class="layer-control">
-                    <label class="switch"><input type="checkbox" id="togglePostSat" checked><span class="slider round"></span></label>
-                    <span class="toggle-label">Satellite Image</span>
-                </div>
-                <div class="layer-control">
-                    <label for="postOpacitySlider">Opacity:</label>
-                    <input type="range" id="postOpacitySlider" min="0" max="1" step="0.05" value="0.8" class="opacity-slider">
-                </div>
                 <button id="runPostDetectionBtn" class="action-button" disabled>Run Post-Event Detection</button>
+                <p id="postImageDateDisplay" class="image-date-display"></p>
+                <div id="postSatControls" style="display: none;">
+                    <div class="layer-control">
+                        <label class="switch"><input type="checkbox" id="togglePostSat" checked><span class="slider round"></span></label>
+                        <span class="toggle-label">Satellite Image</span>
+                    </div>
+                    <div class="layer-control">
+                        <label for="postOpacitySlider">Opacity:</label>
+                        <input type="range" id="postOpacitySlider" min="0" max="1" step="0.05" value="0.8" class="opacity-slider">
+                    </div>
+                </div>
                 <div id="postDetectionControls" class="detection-controls" style="display: none;">
                     <div class="layer-control">
                         <label class="switch"><input type="checkbox" id="togglePostPredMask" checked><span class="slider round"></span></label>

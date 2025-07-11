@@ -1,8 +1,18 @@
 :root {
+    /* Define your custom road colors here */
+    --osm-road-color: #ff0000;
+    --pre-event-color: #00ffff;
+    --post-event-color: #ff00ff;
+    --damage-color: #FFD700;
+    --casing-color: #000000;
+
+    /* Original theme colors */
     --primary-color: #007bff;
     --primary-hover: #0056b3;
     --danger-color: #dc3545;
     --danger-hover: #c82333;
+    --success-color: #28a745;
+    --warning-color: #ffc107;
     --light-gray: #f8f9fa;
     --medium-gray: #ddd;
     --dark-gray: #555;
@@ -48,6 +58,9 @@ html, body, #map {
     display: flex;
     align-items: center;
     gap: 8px;
+    background: var(--bg-color);
+    padding: 5px 10px;
+    border-radius: var(--border-radius);
 }
 
 .controls-container {
@@ -95,14 +108,18 @@ select, input[type="date"], input[type="range"] {
     align-items: center;
     gap: 10px;
     margin-bottom: 5px;
+    width: 60%;
 }
 
 .date-control-item label {
+    width: 60px;
     flex-shrink: 0;
+    text-align: right;
 }
 
 .date-control-item input[type="date"] {
     flex-grow: 1;
+    align-items: center;
 }
 
 /* Layer and Toggle Controls */
@@ -182,15 +199,15 @@ input:checked + .slider:before {
 /* Opacity Slider */
 .opacity-slider {
     -webkit-appearance: none;
-    appearance: none; /* Add standard appearance property */
-    width: 100%; /* Make sliders take available width */
+    appearance: none;
+    width: calc(100% + 16px);
     height: 6px;
     background: var(--medium-gray);
     border-radius: 3px;
     outline: none;
     transition: background 0.3s;
-    padding: 0; /* Override default padding */
-    margin: 0; /* Override default margin */
+    padding: 0;
+    margin: 0;
 }
 
 .opacity-slider:hover {
@@ -266,11 +283,11 @@ input:checked + .slider:before {
     display: none;
     padding: 10px;
     border: 1px solid var(--medium-gray);
-    border-top: none; /* Avoid double border */
+    border-top: none;
     border-radius: 0 0 var(--border-radius) var(--border-radius);
     background-color: #ffffff;
     margin-bottom: 10px;
-    margin-top: -6px; /* Align with header */
+    margin-top: -6px;
 }
 
 /* Component-Specific Styling */
@@ -290,4 +307,68 @@ input:checked + .slider:before {
     font-size: 0.9em;
     margin-bottom: 10px;
     color: var(--dark-gray);
+}
+
+/* Legend Styling */
+#legend {
+    position: absolute;
+    bottom: 85px; /* Position above the base map toggle */
+    right: 10px;
+    z-index: 1000;
+    background: var(--bg-color);
+    padding: 10px 15px;
+    border-radius: var(--border-radius);
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    width: 150px;
+}
+
+#legend h4 {
+    margin: 0 0 10px 0;
+    font-size: 1em;
+    text-align: center;
+    border-bottom: 1px solid var(--medium-gray);
+    padding-bottom: 5px;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    margin-bottom: 5px;
+    font-size: 0.9em;
+}
+
+.legend-item:last-child {
+    margin-bottom: 0;
+}
+
+.legend-item i {
+    width: 30px;
+    margin-right: 10px;
+    flex-shrink: 0;
+    box-sizing: border-box;
+}
+
+/* Legend Colors & Styles using the new variables */
+.legend-color-osm {
+    height: 2px;
+    background-image: linear-gradient(to right, var(--osm-road-color) 70%, transparent 30%);
+    background-size: 8px 100%;
+}
+
+.legend-color-pre {
+    height: 5px;
+    background-color: var(--pre-event-color);
+    border: 1px solid var(--casing-color);
+}
+
+.legend-color-post {
+    height: 5px;
+    background-color: var(--post-event-color);
+    border: 1px solid var(--casing-color);
+}
+
+.legend-color-damage {
+    height: 5px;
+    background-color: var(--damage-color);
+    border: 1px solid var(--casing-color);
 }

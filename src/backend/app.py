@@ -110,38 +110,18 @@ def graph_to_geojson(adjacency_list, geotiff_path):
     features = []
     try:
         with rasterio.open(geotiff_path) as src:
-            # Get the TRUE dimensions of the underlying GeoTIFF
             H_orig, W_orig = src.height, src.width
-            
-            # --- START OF FIX ---
-            # REMOVED: No more incorrect scaling based on a fixed 512x512 size.
-            # The transform from the GeoTIFF is all we need.
             transform = src.transform
-            # --- END OF FIX ---
-
             transformer = Transformer.from_crs(src.crs, "EPSG:4326", always_xy=True)
 
             for source_node_yx, dest_nodes_yx in adjacency_list.items():
                 for dest_node_yx in dest_nodes_yx:
-                    # The nodes are saved as (row, col) which corresponds to (y, x)
                     source_y_pixel, source_x_pixel = source_node_yx
                     dest_y_pixel, dest_x_pixel = dest_node_yx
-
-                    # --- START OF FIX ---
-                    # The Y-coordinate needs to be flipped relative to the image's ACTUAL height,
-                    # not a hardcoded value like 400.
-                    # This step is commented out because the model output (y,x) from top-left
-                    # already matches rasterio's convention. If you still see a vertical flip,
-                    # you might need to uncomment these two lines.
-                    # source_y_pixel = H_orig - source_y_pixel
-                    # dest_y_pixel = H_orig - dest_y_pixel
-                    # --- END OF FIX ---
                     
-                    # Convert pixel coordinates to projected coordinates (e.g., Web Mercator)
                     start_x_proj, start_y_proj = (source_x_pixel + 0.5, source_y_pixel + 0.5) * transform
                     end_x_proj, end_y_proj = (dest_x_pixel + 0.5, dest_y_pixel + 0.5) * transform
 
-                    # Convert projected coordinates to geographic coordinates (lat/lon)
                     start_lon, start_lat = transformer.transform(start_x_proj, start_y_proj)
                     end_lon, end_lat = transformer.transform(end_x_proj, end_y_proj)
 
@@ -170,8 +150,7 @@ def index():
 def get_roads():
     bbox = request.args.get("bbox")
     types_str = request.args.get("types")
-    # New parameter to get the historical date from the frontend
-    query_date = request.args.get("date") # e.g., "2023-08-15"
+    query_date = request.args.get("date")
 
     logging.info(f"Received request for OSM roads with bbox: {bbox} for date: {query_date}")
     
@@ -188,27 +167,14 @@ def get_roads():
         return jsonify({"error": "Invalid 'bbox' format."}), 400
 
     overpass_types = "|".join(types_str.split(","))
-    
-    # IMPORTANT: You must change this URL to a server that supports historical queries!
-    # This is an example URL, please check the Overpass Wiki for an active one.
     overpass_url = "https://overpass-api.de/api/interpreter"
-
-    # Construct the date setting for the query
-    date_setting = ""
-    if query_date:
-        # Format the date into the required ISO 8601 format with a time component
-        date_setting = f'[date:"{query_date}T23:59:59Z"]'
+    date_setting = f'[date:"{query_date}T23:59:59Z"]' if query_date else ""
 
     overpass_query = f"""
         [out:json][timeout:25]{date_setting};
-        (
-          way["highway"~"^({overpass_types})$"]({overpass_bbox});
-        );
-        out body;
-        >;
-        out skel qt;
+        (way["highway"~"^({overpass_types})$"]({overpass_bbox}););
+        out body;>;out skel qt;
     """
-
     try:
         response = requests.post(overpass_url, data={"data": overpass_query})
         logging.info(f"Overpass API response status: {response.status_code}")
@@ -230,21 +196,16 @@ def download_satellite_image():
     target_date = request.args.get("target_date")
     satellite = request.args.get("satellite", "sentinel_2")
     prefix = request.args.get("prefix", "temp")
-
     logging.info(f"Download request for {prefix}-event ({satellite})")
-
     if not all([bbox, start_date, end_date, target_date]):
         return jsonify({"error": "Missing date or bbox parameters"}), 400
-
     try:
         lon_st, lat_st, lon_ed, lat_ed = [float(coord) for coord in bbox.split(",")]
     except (ValueError, IndexError):
         return jsonify({"error": "Invalid 'bbox' format."}), 400
 
     options = {}
-    if satellite == "sentinel_2":
-        options["cloudy_pixel_percentage"] = request.args.get("cloudy_pixel_percentage", 10, type=int)
-    elif satellite == "sentinel_2_nir":
+    if satellite in ["sentinel_2", "sentinel_2_nir"]:
         options["cloudy_pixel_percentage"] = request.args.get("cloudy_pixel_percentage", 10, type=int)
     elif satellite == "sentinel_1":
         polarization = request.args.get("polarization", "VV", type=str)
@@ -252,19 +213,12 @@ def download_satellite_image():
         options["bands"] = [polarization]
 
     geotiff_path = os.path.join(backend_static_folder, f"temp_satellite_{prefix}.tif")
-
     try:
         _, image_date = download_gee_image_near_date(
-            lat_st, lon_st, lat_ed, lon_ed,
-            scale=5,
-            output_path=geotiff_path,
-            start_date=start_date,
-            end_date=end_date,
-            target_date=target_date,
-            satellite=satellite,
-            options=options
+            lat_st, lon_st, lat_ed, lon_ed, scale=5, output_path=geotiff_path,
+            start_date=start_date, end_date=end_date, target_date=target_date,
+            satellite=satellite, options=options
         )
-
         return jsonify({"message": "Download successful", "imageDate": image_date, "prefix": prefix})
     except Exception as e:
         logging.error(f"Image download failed: {e}", exc_info=True)
@@ -273,67 +227,45 @@ def download_satellite_image():
 @app.route("/api/process_satellite_image", methods=["GET"])
 def process_satellite_image():
     satellite = request.args.get("satellite", "sentinel_2")
-    brightness_str = request.args.get("brightness", "1.0")
     prefix = request.args.get("prefix")
-
     if not prefix:
         return jsonify({"error": "Could not determine processing prefix. Download first."}), 400
 
     geotiff_path = os.path.join(backend_static_folder, f"temp_satellite_{prefix}.tif")
     logging.info(f"Processing {prefix}-event {satellite} image.")
-
     if not os.path.exists(geotiff_path):
         return jsonify({"error": "No satellite data found. Please download data first."}), 404
 
     try:
-        brightness = float(brightness_str)
         unique_id = f"{prefix}_{int(time.time())}"
         png_filename = f"satellite_image_{unique_id}.png"
         png_path = os.path.join(backend_static_folder, png_filename)
-
-        bounds_4326 = process_geotiff_image(
-            tif_path=geotiff_path,
-            save_path=png_path,
-            satellite=satellite,
-            brightness_factor=brightness
-        )
-
+        bounds_4326 = process_geotiff_image(tif_path=geotiff_path, save_path=png_path, satellite=satellite)
         if bounds_4326 is None:
             return jsonify({"error": "Image processing failed or skipped."}), 422
-
         leaflet_bounds = [[bounds_4326[0], bounds_4326[2]], [bounds_4326[1], bounds_4326[3]]]
-        image_url = f"/static/{png_filename}"
-
         return jsonify({
-            "imageUrl": image_url,
+            "imageUrl": f"/static/{png_filename}",
             "bounds": leaflet_bounds,
-            "rawBounds": {
-                "lat_min": bounds_4326[0], "lat_max": bounds_4326[1],
-                "lon_min": bounds_4326[2], "lon_max": bounds_4326[3]
-            }
+            "rawBounds": {"lat_min": bounds_4326[0], "lat_max": bounds_4326[1], "lon_min": bounds_4326[2], "lon_max": bounds_4326[3]}
         })
     except Exception as e:
         logging.error(f"Image processing failed: {e}", exc_info=True)
         return jsonify({"error": str(e)}), 500
 
-@app.route("/api/generate_osm_mask", methods=["GET"])
+# --- MODIFIED ENDPOINT: Now uses POST and accepts GeoJSON data ---
+@app.route("/api/generate_osm_mask", methods=["POST"])
 def generate_osm_mask():
-    bbox = request.args.get("bbox")
-    image_bounds_str = request.args.get("image_bounds")
-    types_str = request.args.get("types")
-    if not all([bbox, image_bounds_str, types_str]):
-        return jsonify({"error": "Missing 'bbox', 'image_bounds', or 'types' parameter"}), 400
     try:
-        min_lon, min_lat, max_lon, max_lat = [float(coord) for coord in bbox.split(",")]
-        overpass_bbox = f"{min_lat},{min_lon},{max_lat},{max_lon}"
-        overpass_types = "|".join(types_str.split(","))
-        overpass_url = "https://overpass-api.de/api/interpreter"
-        overpass_query = f"""[out:json][timeout:25];(way["highway"~"^({overpass_types})$"]({overpass_bbox}););out body;>;out skel qt;"""
-        response = requests.get(overpass_url, params={"data": overpass_query})
-        response.raise_for_status()
-        osm_json = response.json()
-        osm_geojson = overpass_to_geojson(osm_json)
-        
+        # Get data from the POST request body
+        request_data = request.get_json()
+        osm_geojson = request_data.get('osm_data')
+        image_bounds_str = request_data.get('image_bounds')
+
+        if not all([osm_geojson, image_bounds_str]):
+            return jsonify({"error": "Missing 'osm_data' or 'image_bounds' in request body"}), 400
+
+        # The Overpass API call is no longer needed here
         image_bounds = [float(b) for b in image_bounds_str.split(',')]
         osm_mask_image = create_osm_mask(osm_geojson, image_bounds, image_size=(512, 512))
         
@@ -343,10 +275,8 @@ def generate_osm_mask():
         osm_mask_image.save(mask_path)
         return jsonify({"maskUrl": f"/static/{mask_filename}"})
 
-    except requests.exceptions.RequestException as e:
-        return jsonify({"error": f"Failed to fetch data from Overpass API: {e}"}), 502
     except (ValueError, IndexError, TypeError) as e:
-        return jsonify({"error": "Invalid parameter format or error during mask creation."}), 400
+        return jsonify({"error": f"Invalid parameter format or error during mask creation: {e}"}), 400
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -369,11 +299,8 @@ def get_predicted_roads():
     inference_script_path = os.path.join(SAM_ROAD_PROJECT_DIR, "inferencer.py")
     command = [
         python_executable, inference_script_path,
-        "--config", SAM_ROAD_CONFIG_PATH,
-        "--checkpoint", SAM_ROAD_CHECKPOINT_PATH,
-        "--device", "cpu",
-        "--images", input_image_path,
-        "--output_dir", output_dir_name,
+        "--config", SAM_ROAD_CONFIG_PATH, "--checkpoint", SAM_ROAD_CHECKPOINT_PATH,
+        "--device", "cpu", "--images", input_image_path, "--output_dir", output_dir_name,
     ]
     try:
         subprocess.run(command, capture_output=True, text=True, check=True, cwd=SAM_ROAD_PROJECT_DIR)
@@ -384,7 +311,6 @@ def get_predicted_roads():
     graph_path = os.path.join(model_output_dir, "graph", "0.p")
     mask_image_path = os.path.join(model_output_dir, "mask", "0_road.png")
     geotiff_path = os.path.join(backend_static_folder, f"temp_satellite_{prefix}.tif")
-
     if not all(os.path.exists(p) for p in [graph_path, mask_image_path, geotiff_path]):
         return jsonify({"error": "Model output or georeference file not found."}), 500
         
@@ -399,24 +325,23 @@ def get_predicted_roads():
     except Exception as e:
         return jsonify({"error": f"Failed to process model output: {str(e)}"}), 500
 
-# --- NEW ENDPOINT FOR ROAD COMPARISON ---
-@app.route("/api/compare_roads", methods=["GET"])
+# --- MODIFIED ENDPOINT: Now uses POST and accepts OSM GeoJSON data ---
+@app.route("/api/compare_roads", methods=["POST"])
 def compare_roads():
-    bbox = request.args.get("bbox")
-    types_str = request.args.get("types")
-    if not bbox or not types_str:
-        return jsonify({"error": "Missing 'bbox' or 'types' parameter"}), 400
-
-    # 1. Load Pre- and Post-event prediction data
     try:
-        # Recreate GeoJSON for pre-event roads
+        # 1. Get OSM data from the POST request body
+        request_data = request.get_json()
+        osm_geojson = request_data.get('osm_data')
+        if not osm_geojson:
+            return jsonify({"error": "Missing 'osm_data' in request body"}), 400
+
+        # 2. Load Pre- and Post-event prediction data from files
         geotiff_path_pre = os.path.join(backend_static_folder, "temp_satellite_pre.tif")
         graph_path_pre = os.path.join(SAM_ROAD_PROJECT_DIR, "save", "sentinel_test_pre", "graph", "0.p")
         with open(graph_path_pre, "rb") as f:
             graph_data_pre = pickle.load(f)
         pre_event_geojson = graph_to_geojson(graph_data_pre, geotiff_path_pre)
 
-        # Recreate GeoJSON for post-event roads
         geotiff_path_post = os.path.join(backend_static_folder, "temp_satellite_post.tif")
         graph_path_post = os.path.join(SAM_ROAD_PROJECT_DIR, "save", "sentinel_test_post", "graph", "0.p")
         with open(graph_path_post, "rb") as f:
@@ -429,48 +354,24 @@ def compare_roads():
         logging.error(f"Error loading prediction data: {e}")
         return jsonify({"error": "Could not load prediction data."}), 500
 
-    # 2. Load OSM ground truth data
-    try:
-        min_lon, min_lat, max_lon, max_lat = [float(coord) for coord in bbox.split(",")]
-        overpass_bbox = f"{min_lat},{min_lon},{max_lat},{max_lon}"
-        overpass_types = "|".join(types_str.split(","))
-        overpass_url = "https://overpass-api.de/api/interpreter"
-        overpass_query = f"""[out:json][timeout:25];(way["highway"~"^({overpass_types})$"]({overpass_bbox}););out body;>;out skel qt;"""
-        response = requests.get(overpass_url, params={"data": overpass_query})
-        response.raise_for_status()
-        osm_geojson = overpass_to_geojson(response.json())
-    except Exception as e:
-        return jsonify({"error": f"Failed to fetch or process OSM data: {e}"}), 500
-
     # 3. Perform the comparison
     try:
-        # Convert post-event and OSM roads to Shapely geometries for efficient searching
         post_lines = [shape(feature["geometry"]) for feature in post_event_geojson["features"]]
         osm_lines = [shape(feature["geometry"]) for feature in osm_geojson["features"]]
-
         if not osm_lines:
-            return jsonify({"error": "No OSM roads found in the area to use as a reference."}), 404
+            return jsonify({"error": "No OSM roads found in the data to use as a reference."}), 404
 
-        # Combine all post-event and OSM roads into two single, unified geometries
         post_union = unary_union(post_lines)
         osm_union = unary_union(osm_lines)
 
-        # Buffer the road networks. 0.0001 degrees is approx 11 meters.
-        # This creates a search area around the road lines.
         post_buffer = post_union.buffer(0.0002)
         osm_buffer = osm_union.buffer(0.0002)
 
         damaged_roads = []
-        # Iterate through each pre-event road segment
         for feature in pre_event_geojson["features"]:
             pre_line = shape(feature["geometry"])
-            
-            # A road is considered damaged if it meets two conditions:
-            # 1. It existed in the known OSM road network (i.e., it's a real road, not a model error).
-            # 2. It does NOT exist in the post-event prediction.
             is_on_osm = pre_line.intersects(osm_buffer)
             is_in_post = pre_line.intersects(post_buffer)
-
             if is_on_osm and not is_in_post:
                 damaged_roads.append(feature)
 
@@ -480,7 +381,6 @@ def compare_roads():
     except Exception as e:
         logging.error(f"Error during comparison: {e}", exc_info=True)
         return jsonify({"error": f"An unexpected error occurred during analysis: {e}"}), 500
-
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=4000, debug=True)

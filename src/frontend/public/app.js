@@ -1,5 +1,15 @@
 document.addEventListener('DOMContentLoaded', () => {
-    const map = L.map('map').setView([50.8056, -1.0875], 13);
+    // Read your custom road colors from the CSS :root
+    const rootStyles = getComputedStyle(document.documentElement);
+    const roadColors = {
+        osm: rootStyles.getPropertyValue('--osm-road-color').trim(),
+        preEvent: rootStyles.getPropertyValue('--pre-event-color').trim(),
+        postEvent: rootStyles.getPropertyValue('--post-event-color').trim(),
+        damage: rootStyles.getPropertyValue('--damage-color').trim(),
+        casing: rootStyles.getPropertyValue('--casing-color').trim()
+    };
+
+    const map = L.map('map').setView([39.217, -76.528], 15);
     let baseMapLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
     }).addTo(map);
@@ -42,6 +52,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const cloudCoverValueNIR = document.getElementById('cloudCoverValueNIR');
     const gtMaskControls = document.getElementById('gtMaskControls');
     const damageAnalysisControls = document.getElementById('damageAnalysisControls');
+    const preSatControls = document.getElementById('preSatControls');
+    const postSatControls = document.getElementById('postSatControls');
+
 
     const showLoader = (text = 'Processing...') => { loader.textContent = text; loader.style.display = 'flex'; };
     const hideLoader = () => loader.style.display = 'none';
@@ -54,6 +67,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         gtMaskControls.style.display = 'none';
         damageAnalysisControls.style.display = 'none';
+        preSatControls.style.display = 'none';
+        postSatControls.style.display = 'none';
         generateGTMaskBtn.disabled = true;
         compareRoadsBtn.disabled = true;
 
@@ -104,6 +119,7 @@ document.addEventListener('DOMContentLoaded', () => {
             satellite: null
         };
     
+        preSatControls.style.display = 'none';
         document.getElementById('preDetectionControls').style.display = 'none';
         document.getElementById('runPreDetectionBtn').disabled = true;
     }
@@ -124,9 +140,10 @@ document.addEventListener('DOMContentLoaded', () => {
             satellite: null
         };
     
+        postSatControls.style.display = 'none';
         document.getElementById('postDetectionControls').style.display = 'none';
         document.getElementById('runPostDetectionBtn').disabled = true;
-    }    
+    }
 
     const updateRectangleInfo = (layer) => {
         const bounds = layer.getBounds();
@@ -139,13 +156,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const content = `<b>Width:</b> ${formatDistance(widthMeters)}<br><b>Height:</b> ${formatDistance(heightMeters)}`;
         layer.bindPopup(content).openPopup();
     };
-    
-    const today = new Date();
-    const oneMonthAgo = new Date(new Date().setMonth(today.getMonth() - 1));
-    const twoMonthsAgo = new Date(new Date().setMonth(today.getMonth() - 2));
-    startDateInput.value = twoMonthsAgo.toISOString().split('T')[0];
-    midDateInput.value = oneMonthAgo.toISOString().split('T')[0];
-    endDateInput.value = today.toISOString().split('T')[0];
+
+    startDateInput.value = '2024-02-01'; // Pre-event start
+    midDateInput.value = '2024-03-26';   // Event date
+    endDateInput.value = '2024-05-01';   // Post-event end
 
     map.on(L.Draw.Event.CREATED, (event) => {
         resetWorkflow(true);
@@ -173,7 +187,7 @@ document.addEventListener('DOMContentLoaded', () => {
     map.on(L.Draw.Event.DELETED, () => resetWorkflow(true));
 
     let osmRoadsLayer = L.geoJSON(null, {
-        style: () => ({ color: '#ff0000', weight: 2, opacity: 0.8, dashArray: '5, 10' })
+        style: () => ({ color: roadColors.osm, weight: 2, opacity: 0.8, dashArray: '5, 10' })
     }).addTo(map);
 
     const getSelectedRoadTypes = () => Array.from(document.querySelectorAll('.road-type-filter:checked')).map(cb => cb.value).join(',');
@@ -201,25 +215,20 @@ document.addEventListener('DOMContentLoaded', () => {
         const bbox = drawnRectangle.getBounds().toBBoxString();
         const satellite = satelliteSelect.value;
         let cloudCover = undefined;
-        if (satellite === 'sentinel_2') {
-            cloudCover = cloudCoverSlider.value;
-        } else if (satellite === 'sentinel_2_nir') {
-            cloudCover = cloudCoverSliderNIR.value;
+        if (satellite === 'sentinel_2' || satellite === 'sentinel_2_nir') {
+            cloudCover = document.getElementById(satellite === 'sentinel_2' ? 'cloudCoverSlider' : 'cloudCoverSliderNIR').value;
         }
 
         const commonParams = {
-            bbox: bbox,
-            satellite: satellite,
-            cloudy_pixel_percentage: cloudCover,
+            bbox: bbox, satellite: satellite, cloudy_pixel_percentage: cloudCover,
             polarization: satellite === 'sentinel_1' ? polarizationSelect.value : undefined
         };
         try {
             showLoader('Fetching Pre-Event image...');
             const preImageResult = await fetchAndProcessImage('pre', { ...commonParams, start_date: startDateInput.value, end_date: midDateInput.value, target_date: midDateInput.value });
             if (preImageResult) {
+                preSatControls.style.display = 'block';
                 document.getElementById('runPreDetectionBtn').disabled = false;
-            }
-            if (preImageResult) {
                 generateGTMaskBtn.disabled = false;
                 map.fitBounds(analysisState.pre.bounds || analysisState.post.bounds);
             } else {
@@ -235,21 +244,18 @@ document.addEventListener('DOMContentLoaded', () => {
         const bbox = drawnRectangle.getBounds().toBBoxString();
         const satellite = satelliteSelect.value;
         let cloudCover = undefined;
-        if (satellite === 'sentinel_2') {
-            cloudCover = cloudCoverSlider.value;
-        } else if (satellite === 'sentinel_2_nir') {
-            cloudCover = cloudCoverSliderNIR.value;
+        if (satellite === 'sentinel_2' || satellite === 'sentinel_2_nir') {
+            cloudCover = document.getElementById(satellite === 'sentinel_2' ? 'cloudCoverSlider' : 'cloudCoverSliderNIR').value;
         }
         const commonParams = {
-            bbox: bbox,
-            satellite: satellite,
-            cloudy_pixel_percentage: cloudCover,
+            bbox: bbox, satellite: satellite, cloudy_pixel_percentage: cloudCover,
             polarization: satellite === 'sentinel_1' ? polarizationSelect.value : undefined
         };
         try {
             showLoader('Fetching Post-Event image...');
             const postImageResult = await fetchAndProcessImage('post', { ...commonParams, start_date: midDateInput.value, end_date: endDateInput.value, target_date: midDateInput.value });
             if (postImageResult) {
+                postSatControls.style.display = 'block';
                 document.getElementById('runPostDetectionBtn').disabled = false;
                 map.fitBounds(analysisState.post.bounds || analysisState.pre.bounds);
             } else {
@@ -257,29 +263,48 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } catch (error) { console.error('Error generating images:', error); alert(`Error: ${error.message}`);
         } finally { hideLoader(); }
-    }
-    );
+    });
 
     generateGTMaskBtn.addEventListener('click', async () => {
         const imageState = analysisState.pre.rawBounds ? analysisState.pre : analysisState.post;
-        if (!imageState.rawBounds) { alert('Generate a satellite image first.'); return; }
-        if (!drawnRectangle) { alert('Error: The drawn rectangle reference was lost. Please draw a new one.'); return; }
+        if (!imageState.rawBounds) {
+            alert('Generate a satellite image first.');
+            return;
+        }
+
+        const osmData = osmRoadsLayer.toGeoJSON();
+        if (osmData.features.length === 0) {
+            alert('No OSM roads are loaded on the map. Please fetch roads first.');
+            return;
+        }
+
         showLoader('Generating Ground Truth mask...');
         try {
-            const bbox = drawnRectangle.getBounds().toBBoxString();
-            const types = getSelectedRoadTypes();
             const { lat_min, lat_max, lon_min, lon_max } = imageState.rawBounds;
             const image_bounds = `${lat_min},${lat_max},${lon_min},${lon_max}`;
-            const url = `${API_BASE_URL}/api/generate_osm_mask?bbox=${bbox}&types=${types}&image_bounds=${image_bounds}`;
-            const res = await fetch(url);
+
+            const res = await fetch(`${API_BASE_URL}/api/generate_osm_mask`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    osm_data: osmData,
+                    image_bounds: image_bounds
+                })
+            });
+
             if (!res.ok) throw new Error((await res.json()).error);
             const data = await res.json();
+
             if (analysisState.gtMaskLayer) analysisState.gtMaskLayer.remove();
-            const bounds = imageState.bounds;
-            analysisState.gtMaskLayer = L.imageOverlay(data.maskUrl, bounds, { opacity: 0.7 }).addTo(map);
+            analysisState.gtMaskLayer = L.imageOverlay(data.maskUrl, imageState.bounds, { opacity: 0.7 }).addTo(map);
             gtMaskControls.style.display = 'block';
-        } catch (error) { console.error("GT Mask Error:", error); alert(`GT Mask generation failed: ${error.message}`);
-        } finally { hideLoader(); }
+
+        } catch (error) {
+            console.error("GT Mask Error:", error);
+            alert(`GT Mask generation failed: ${error.message}`);
+        } finally {
+            hideLoader();
+        }
     });
 
     async function fetchAndProcessImage(prefix, params) {
@@ -315,12 +340,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (analysisState[prefix].predGraphGroup) analysisState[prefix].predGraphGroup.remove();
             if (analysisState[prefix].predMaskLayer) analysisState[prefix].predMaskLayer.remove();
-            
+
             const styles = {
-                pre: { color: '#00ffff', weight: 3 },
-                post: { color: '#ff00ff', weight: 3 }
+                pre: { color: roadColors.preEvent, weight: 3 },
+                post: { color: roadColors.postEvent, weight: 3 }
             };
-            const casingStyle = { color: '#000000', weight: styles[prefix].weight + 2, opacity: 0.7 };
+            const casingStyle = { color: roadColors.casing, weight: styles[prefix].weight + 2, opacity: 0.7 };
             const mainStyle = { ...styles[prefix], opacity: 1 };
 
             const casingLayer = L.geoJSON(data.geojson, { style: casingStyle });
@@ -336,27 +361,33 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (error) { console.error(`${prefix} Detection Error:`, error); alert(`Detection failed: ${error.message}`);
         } finally { hideLoader(); }
     }
-    
+
     compareRoadsBtn.addEventListener('click', async () => {
-        if (!drawnRectangle) { alert('Please draw an area of interest first.'); return; }
         if (!analysisState.pre.predGraphGroup || !analysisState.post.predGraphGroup) {
             alert('Please run both pre and post-event detection first.'); return;
         }
 
+        const osmData = osmRoadsLayer.toGeoJSON();
+        if (osmData.features.length === 0) {
+            alert('No OSM roads are loaded. Please fetch roads to use as a damage reference.');
+            return;
+        }
+
         showLoader('Analyzing road damage...');
         try {
-            const bbox = drawnRectangle.getBounds().toBBoxString();
-            const types = getSelectedRoadTypes();
-            const url = `${API_BASE_URL}/api/compare_roads?bbox=${bbox}&types=${types}`;
-            
-            const res = await fetch(url);
+            const res = await fetch(`${API_BASE_URL}/api/compare_roads`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ osm_data: osmData })
+            });
+
             if (!res.ok) throw new Error((await res.json()).error);
             const data = await res.json();
 
             if (analysisState.damageLayerGroup) analysisState.damageLayerGroup.remove();
             
-            const casingStyle = { color: '#000000', weight: 7, opacity: 0.8 };
-            const mainStyle = { color: '#FFD700', weight: 5, opacity: 1 };
+            const casingStyle = { color: roadColors.casing, weight: 7, opacity: 0.8 };
+            const mainStyle = { color: roadColors.damage, weight: 5, opacity: 1 };
 
             const casingLayer = L.geoJSON(data.geojson, { style: casingStyle });
             const mainLayer = L.geoJSON(data.geojson, { style: mainStyle });
@@ -386,11 +417,9 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('roadToggle').addEventListener('change', (e) => map.toggleLayer(osmRoadsLayer, e.target.checked));
     document.getElementById('toggleGtMask').addEventListener('change', (e) => map.toggleLayer(analysisState.gtMaskLayer, e.target.checked));
     document.getElementById('gtMaskOpacitySlider').addEventListener('input', (e) => { if (analysisState.gtMaskLayer) analysisState.gtMaskLayer.setOpacity(e.target.value); });
-
     document.getElementById('toggleDamageLayer').addEventListener('change', (e) => map.toggleLayer(analysisState.damageLayerGroup, e.target.checked));
 
-
-    L.Map.prototype.toggleLayer = (layer, show) => { if (layer) { if (show) map.addLayer(layer); else map.removeLayer(layer); } };
+    L.Map.prototype.toggleLayer = function(layer, show) { if (layer) { if (show) this.addLayer(layer); else this.removeLayer(layer); } };
     
     ['pre', 'post'].forEach(prefix => {
         document.getElementById(`toggle${prefix.charAt(0).toUpperCase() + prefix.slice(1)}Sat`).addEventListener('change', (e) => map.toggleLayer(analysisState[prefix].satLayer, e.target.checked));
@@ -419,11 +448,6 @@ document.addEventListener('DOMContentLoaded', () => {
         sentinel2NIROptions.style.display = selected === 'sentinel_2_nir' ? 'block' : 'none';
     });
 
-    cloudCoverSlider.addEventListener('input', (e) => {
-        cloudCoverValue.textContent = e.target.value;
-    });
-
-    cloudCoverSliderNIR.addEventListener('input', (e) => {
-        cloudCoverValueNIR.textContent = e.target.value;
-    });
+    cloudCoverSlider.addEventListener('input', (e) => { cloudCoverValue.textContent = e.target.value; });
+    cloudCoverSliderNIR.addEventListener('input', (e) => { cloudCoverValueNIR.textContent = e.target.value; });
 });
