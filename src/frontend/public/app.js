@@ -13,9 +13,14 @@ document.addEventListener('DOMContentLoaded', () => {
     let baseMapLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
     }).addTo(map);
-    
-    // Add a scale control to the map
-    L.control.scale().addTo(map);
+
+    L.control.scale({
+        position: 'bottomleft', // Position of the control
+        maxWidth: 200,           // Maximum width of the control in pixels
+        metric: true,            // Show metric units (m/km)
+        imperial: false,         // Hide imperial units (mi/ft)
+        updateWhenIdle: true     // Only update when the map is idle
+    }).addTo(map);
 
     const drawnItems = new L.FeatureGroup().addTo(map);
     map.addControl(new L.Control.Draw({
