@@ -13,6 +13,9 @@ document.addEventListener('DOMContentLoaded', () => {
     let baseMapLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
     }).addTo(map);
+    
+    // Add a scale control to the map
+    L.control.scale().addTo(map);
 
     const drawnItems = new L.FeatureGroup().addTo(map);
     map.addControl(new L.Control.Draw({
