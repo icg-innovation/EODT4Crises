@@ -101,6 +101,25 @@
             <div class="collapsible-header"><strong>Satellite Imagery</strong><span class="arrow">▼</span></div>
             <div class="collapsible-content">
                 <div class="satellite-selection">
+                    <label for="dataSourceSelect"><strong>Data Source:</strong></label>
+                    <select id="dataSourceSelect">
+                        <option value="gee" selected>Google Earth Engine</option>
+                        <option value="planet" disabled>Planet API (Coming Soon)</option>
+                        <option value="maxar" disabled>Maxar API (Coming Soon)</option>
+                    </select>
+                </div>
+
+                <div id="geeOptionsContainer" class="provider-options">
+                    <label for="geeProjectInput">GEE Project ID:</label>
+                    <input type="text" id="geeProjectInput" value="uksa-training-course-materials" placeholder="uksa-training-course-materials">
+                </div>
+
+                <div id="planetOptionsContainer" class="provider-options" style="display: none;">
+                    <label for="planetApiKeyInput">Planet API Key:</label>
+                    <input type="password" id="planetApiKeyInput" placeholder="Enter your Planet API key">
+                </div>
+
+                <div class="satellite-selection">
                     <select id="satelliteSelect">
                         <option value="sentinel_2" selected>Sentinel-2</option>
                         <option value="sentinel_2_nir">Sentinel-2 NIR</option>

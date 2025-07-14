@@ -12,16 +12,15 @@ import pickle
 import rasterio
 from rasterio.transform import Affine
 from datetime import datetime
-from data_processing.gee_downloader import (
-    authenticate_earth_engine,
-    download_gee_image_near_date,
-    process_geotiff_image
-)
+
 from pyproj import Transformer
 import logging
 from PIL import Image, ImageDraw
 from shapely.geometry import shape, LineString
 from shapely.ops import unary_union
+
+from image_providers.provider_factory import get_provider
+from utils.image_processing import process_geotiff_image
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
@@ -45,14 +44,10 @@ if os.path.exists(backend_static_folder):
 else:
     os.makedirs(backend_static_folder)
 
-try:
-    authenticate_earth_engine("uksa-training-course-materials")
-except Exception as e:
-    print(f"Could not initialize Google Earth Engine: {e}")
-
 frontend_static_folder = os.path.abspath(os.path.join(CURRENT_DIR, "..", "frontend", "public"))
 backend_static_folder = os.path.abspath(os.path.join(CURRENT_DIR, "static"))
 app = Flask(__name__, static_folder=frontend_static_folder, static_url_path="")
+app.config["TEMPLATES_AUTO_RELOAD"] = True
 logging.info(f"Serving static files from frontend: {frontend_static_folder}")
 
 @app.route("/static/<path:filename>")
@@ -188,38 +183,51 @@ def get_roads():
     return jsonify(overpass_to_geojson(data))
 
 
-@app.route("/api/download_satellite_image", methods=["GET"])
+@app.route("/api/download_satellite_image", methods=["POST"]) # Changed to POST for security
 def download_satellite_image():
-    bbox = request.args.get("bbox")
-    start_date = request.args.get("start_date")
-    end_date = request.args.get("end_date")
-    target_date = request.args.get("target_date")
-    satellite = request.args.get("satellite", "sentinel_2")
-    prefix = request.args.get("prefix", "temp")
-    logging.info(f"Download request for {prefix}-event ({satellite})")
-    if not all([bbox, start_date, end_date, target_date]):
-        return jsonify({"error": "Missing date or bbox parameters"}), 400
+    # Get data from JSON body instead of query params
+    data = request.get_json()
+    
+    # Core parameters
+    bbox = data.get("bbox")
+    start_date = data.get("start_date")
+    end_date = data.get("end_date")
+    target_date = data.get("target_date")
+    prefix = data.get("prefix", "temp")
+
+    # New provider-related parameters
+    source_provider = data.get("source_provider") # e.g., "gee", "planet"
+    credentials = data.get("credentials", {})     # e.g., {"project_id": "...", "api_key": "..."}
+
+    # Provider-specific options
+    options = data.get("options", {})              # e.g., {"satellite": "sentinel_1", "polarization": "VV"}
+
+    # --- Validation ---
+    if not all([bbox, start_date, end_date, target_date, source_provider]):
+        return jsonify({"error": "Missing required parameters in request body"}), 400
+
     try:
         lon_st, lat_st, lon_ed, lat_ed = [float(coord) for coord in bbox.split(",")]
     except (ValueError, IndexError):
         return jsonify({"error": "Invalid 'bbox' format."}), 400
 
-    options = {}
-    if satellite in ["sentinel_2", "sentinel_2_nir"]:
-        options["cloudy_pixel_percentage"] = request.args.get("cloudy_pixel_percentage", 10, type=int)
-    elif satellite == "sentinel_1":
-        polarization = request.args.get("polarization", "VV", type=str)
-        options["polarization"] = polarization
-        options["bands"] = [polarization]
-
     geotiff_path = os.path.join(backend_static_folder, f"temp_satellite_{prefix}.tif")
+
     try:
-        _, image_date = download_gee_image_near_date(
-            lat_st, lon_st, lat_ed, lon_ed, scale=5, output_path=geotiff_path,
+        # 1. Get the correct provider instance from the factory
+        provider = get_provider(source_provider, credentials)
+
+        # 2. Call the download method from the common interface
+        _, image_date = provider.download_image(
+            lat_st=lat_st, lon_st=lon_st, lat_ed=lat_ed, lon_ed=lon_ed,
             start_date=start_date, end_date=end_date, target_date=target_date,
-            satellite=satellite, options=options
+            output_path=geotiff_path,
+            scale=5, # or get from request
+            options=options
         )
+
         return jsonify({"message": "Download successful", "imageDate": image_date, "prefix": prefix})
+
     except Exception as e:
         logging.error(f"Image download failed: {e}", exc_info=True)
         return jsonify({"error": str(e)}), 500
@@ -268,7 +276,7 @@ def generate_osm_mask():
         # The Overpass API call is no longer needed here
         image_bounds = [float(b) for b in image_bounds_str.split(',')]
         osm_mask_image = create_osm_mask(osm_geojson, image_bounds, image_size=(512, 512))
-        
+
         unique_id = int(time.time())
         mask_filename = f"osm_mask_{unique_id}.png"
         mask_path = os.path.join(backend_static_folder, mask_filename)

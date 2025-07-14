@@ -1,5 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
-    // Read your custom road colors from the CSS :root
+    // Read custom road colors from the CSS :root
     const rootStyles = getComputedStyle(document.documentElement);
     const roadColors = {
         osm: rootStyles.getPropertyValue('--osm-road-color').trim(),
@@ -62,7 +62,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const damageAnalysisControls = document.getElementById('damageAnalysisControls');
     const preSatControls = document.getElementById('preSatControls');
     const postSatControls = document.getElementById('postSatControls');
-
+    const dataSourceSelect = document.getElementById('dataSourceSelect');
+    const geeOptionsContainer = document.getElementById('geeOptionsContainer');
+    const planetOptionsContainer = document.getElementById('planetOptionsContainer');
+    const geeProjectInput = document.getElementById('geeProjectInput');
+    const planetApiKeyInput = document.getElementById('planetApiKeyInput');
 
     const showLoader = (text = 'Processing...') => { loader.textContent = text; loader.style.display = 'flex'; };
     const hideLoader = () => loader.style.display = 'none';
@@ -247,9 +251,24 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     updateRoadsBtn.addEventListener('click', updateRoads);
 
+    dataSourceSelect.addEventListener('change', () => {
+        const selectedProvider = dataSourceSelect.value;
+        // Hide all provider option containers
+        document.querySelectorAll('.provider-options').forEach(el => el.style.display = 'none');
+
+        // Show the relevant one
+        if (selectedProvider === 'gee') {
+            geeOptionsContainer.style.display = 'block';
+        } else if (selectedProvider === 'planet') {
+            planetOptionsContainer.style.display = 'block';
+        }
+    });
+
     generatePreImagesBtn.addEventListener('click', async () => {
         if (!drawnRectangle) { alert('Please draw a rectangle on the map first.'); return; }
         resetPreLayers();
+
+        // 1. Get common parameters
         const bbox = drawnRectangle.getBounds().toBBoxString();
         const satellite = satelliteSelect.value;
         let cloudCover = undefined;
@@ -261,14 +280,48 @@ document.addEventListener('DOMContentLoaded', () => {
             bbox: bbox, satellite: satellite, cloudy_pixel_percentage: cloudCover,
             polarization: satellite === 'sentinel_1' ? polarizationSelect.value : undefined
         };
+
+        // 2. Get provider-specific parameters
+        const source_provider = dataSourceSelect.value;
+        let credentials = {};
+        if (source_provider === 'gee') {
+            credentials.project_id = geeProjectInput.value.trim().replace(/["']/g, "");
+            credentials.project_id = geeProjectInput.value;
+            if (!credentials.project_id) {
+                alert('Please enter a Google Earth Engine Project ID.');
+                return;
+            }
+        } else if (source_provider === 'planet') {
+            credentials.api_key = planetApiKeyInput.value;
+             if (!credentials.api_key) {
+                alert('Please enter your Planet API Key.');
+                return;
+            }
+        }
+
+        // 3. Construct the request body for the POST request
+        const requestBody = {
+            bbox: bbox,
+            start_date: startDateInput.value,
+            end_date: midDateInput.value,
+            target_date: midDateInput.value,
+            prefix: 'pre',
+            source_provider: source_provider,
+            credentials: credentials,
+            options: { // Gather all other satellite-specific options here
+                satellite: satellite,
+                cloudy_pixel_percentage: cloudCover,
+                polarization: satellite === 'sentinel_1' ? polarizationSelect.value : undefined
+            }
+        };
+
         try {
             showLoader('Fetching Pre-Event image...');
-            const preImageResult = await fetchAndProcessImage('pre', { ...commonParams, start_date: startDateInput.value, end_date: midDateInput.value, target_date: midDateInput.value });
+            const preImageResult = await fetchAndProcessImage('pre', requestBody);
             if (preImageResult) {
                 preSatControls.style.display = 'block';
                 document.getElementById('runPreDetectionBtn').disabled = false;
-                generateGTMaskBtn.disabled = false;
-                map.fitBounds(analysisState.pre.bounds || analysisState.post.bounds);
+                map.fitBounds(analysisState.post.bounds || analysisState.pre.bounds);
             } else {
                 alert('Could not find any images for the selected dates and area.');
             }
@@ -279,19 +332,58 @@ document.addEventListener('DOMContentLoaded', () => {
     generatePostImagesBtn.addEventListener('click', async () => {
         if (!drawnRectangle) { alert('Please draw a rectangle on the map first.'); return; }
         resetPostLayers();
+
+        // 1. Get common parameters
         const bbox = drawnRectangle.getBounds().toBBoxString();
         const satellite = satelliteSelect.value;
         let cloudCover = undefined;
         if (satellite === 'sentinel_2' || satellite === 'sentinel_2_nir') {
             cloudCover = document.getElementById(satellite === 'sentinel_2' ? 'cloudCoverSlider' : 'cloudCoverSliderNIR').value;
         }
+
         const commonParams = {
             bbox: bbox, satellite: satellite, cloudy_pixel_percentage: cloudCover,
             polarization: satellite === 'sentinel_1' ? polarizationSelect.value : undefined
         };
+
+        // 2. Get provider-specific parameters
+        const source_provider = dataSourceSelect.value;
+        let credentials = {};
+        if (source_provider === 'gee') {
+            credentials.project_id = geeProjectInput.value.trim().replace(/["']/g, "");
+            credentials.project_id = geeProjectInput.value;
+            if (!credentials.project_id) {
+                alert('Please enter a Google Earth Engine Project ID.');
+                return;
+            }
+        } else if (source_provider === 'planet') {
+            credentials.api_key = planetApiKeyInput.value;
+             if (!credentials.api_key) {
+                alert('Please enter your Planet API Key.');
+                return;
+            }
+        }
+
+
+        // 3. Construct the request body for the POST request
+        const requestBody = {
+            bbox: bbox,
+            start_date: midDateInput.value,
+            end_date: endDateInput.value,
+            target_date: midDateInput.value,
+            prefix: 'post',
+            source_provider: source_provider,
+            credentials: credentials,
+            options: { // Gather all other satellite-specific options here
+                satellite: satellite,
+                cloudy_pixel_percentage: cloudCover,
+                polarization: satellite === 'sentinel_1' ? polarizationSelect.value : undefined
+            }
+        };
+
         try {
             showLoader('Fetching Post-Event image...');
-            const postImageResult = await fetchAndProcessImage('post', { ...commonParams, start_date: midDateInput.value, end_date: endDateInput.value, target_date: midDateInput.value });
+            const postImageResult = await fetchAndProcessImage('post', requestBody);
             if (postImageResult) {
                 postSatControls.style.display = 'block';
                 document.getElementById('runPostDetectionBtn').disabled = false;
@@ -350,18 +442,24 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     async function fetchAndProcessImage(prefix, params) {
-        const allParams = { ...params, prefix: prefix };
-        const query = new URLSearchParams(Object.entries(allParams).filter(([_, v]) => v != null)).toString();
         try {
-            const downloadRes = await fetch(`${API_BASE_URL}/api/download_satellite_image?${query}`);
+            const downloadRes = await fetch(`${API_BASE_URL}/api/download_satellite_image`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(params)
+            });
+
             if (!downloadRes.ok) throw new Error((await downloadRes.json()).error);
             const downloadData = await downloadRes.json();
+
             showLoader(`Processing ${prefix}-event image...`);
-            const processRes = await fetch(`${API_BASE_URL}/api/process_satellite_image?satellite=${params.satellite}&prefix=${prefix}`);
+            const processRes = await fetch(`${API_BASE_URL}/api/process_satellite_image?satellite=${params.options.satellite}&prefix=${prefix}`);
+
             if (!processRes.ok) throw new Error((await processRes.json()).error);
             const processData = await processRes.json();
+
             Object.assign(analysisState[prefix], processData);
-            analysisState[prefix].satellite = params.satellite;
+            analysisState[prefix].satellite = params.options.satellite;
             analysisState[prefix].satLayer = L.imageOverlay(processData.imageUrl, processData.bounds, { opacity: 0.8 }).addTo(map);
             document.getElementById(`${prefix}ImageDateDisplay`).innerHTML = `<b>Image Date:</b> ${downloadData.imageDate}`;
 
