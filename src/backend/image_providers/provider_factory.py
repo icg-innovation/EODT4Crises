@@ -2,11 +2,13 @@
 from typing import Dict, Any
 from .base_provider import ImageProvider
 from .gee_provider import GEEProvider
+from .maxar_provider import MaxarProvider
 # from .planet_provider import PlanetProvider  <- Uncomment when you implement it
 # from .local_provider import LocalProvider    <- Uncomment when you implement it
 
 PROVIDER_MAP = {
     "gee": GEEProvider,
+    "maxar": MaxarProvider,
     # "planet": PlanetProvider,
     # "local": LocalProvider
 }

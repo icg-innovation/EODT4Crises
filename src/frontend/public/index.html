@@ -104,8 +104,8 @@
                     <label for="dataSourceSelect"><strong>Data Source:</strong></label>
                     <select id="dataSourceSelect">
                         <option value="gee" selected>Google Earth Engine</option>
+                        <option value="maxar">Maxar</option>
                         <option value="planet" disabled>Planet API (Coming Soon)</option>
-                        <option value="maxar" disabled>Maxar API (Coming Soon)</option>
                     </select>
                 </div>
 
@@ -119,27 +119,39 @@
                     <input type="password" id="planetApiKeyInput" placeholder="Enter your Planet API key">
                 </div>
 
-                <div class="satellite-selection">
-                    <select id="satelliteSelect">
-                        <option value="sentinel_2" selected>Sentinel-2</option>
-                        <option value="sentinel_2_nir">Sentinel-2 NIR</option>
-                        <option value="sentinel_1">Sentinel-1</option>
-                    </select>
+                <div id="maxarOptionsContainer" class="provider-options" style="display: none;">
+                    <label for="maxarApiKeyInput">Maxar API Key:</label>
+                    <input type="password" id="maxarApiKeyInput" placeholder="Enter your Maxar API key">
                 </div>
-                <div id="sentinel2Options" class="satellite-options">
-                    <label for="cloudCoverSlider">Cloud Cover (%): <span id="cloudCoverValue">10</span>%</label>
-                    <input type="range" id="cloudCoverSlider" min="0" max="100" value="10">
-                </div>
-                <div id="sentinel2NIROptions" class="satellite-options" style="display: none;">
-                    <label for="cloudCoverSliderNIR">Cloud Cover (%): <span id="cloudCoverValueNIR">10</span>%</label>
-                    <input type="range" id="cloudCoverSliderNIR" min="0" max="100" value="10">
-                </div>
-                <div id="sentinel1Options" class="satellite-options" style="display: none;">
-                    <label for="polarizationSelect">Polarization:</label>
-                    <select id="polarizationSelect">
-                        <option value="VV" selected>VV</option>
-                        <option value="VH">VH</option>
-                    </select>
+
+                <!-- This container holds all satellite-specific controls -->
+                <div id="satelliteOptionsContainer">
+                    <div class="satellite-selection">
+                        <label for="satelliteSelect">Satellite:</label>
+                        <select id="satelliteSelect">
+                            <!-- Options will be populated by JavaScript -->
+                        </select>
+                    </div>
+                    <div id="sentinel2Options" class="satellite-options" style="display: none;">
+                        <label for="cloudCoverSlider">Cloud Cover (%): <span id="cloudCoverValue">10</span>%</label>
+                        <input type="range" id="cloudCoverSlider" min="0" max="100" value="10">
+                    </div>
+                    <div id="sentinel2NIROptions" class="satellite-options" style="display: none;">
+                        <label for="cloudCoverSliderNIR">Cloud Cover (%): <span id="cloudCoverValueNIR">10</span>%</label>
+                        <input type="range" id="cloudCoverSliderNIR" min="0" max="100" value="10">
+                    </div>
+                    <div id="sentinel1Options" class="satellite-options" style="display: none;">
+                        <label for="polarizationSelect">Polarization:</label>
+                        <select id="polarizationSelect">
+                            <option value="VV" selected>VV</option>
+                            <option value="VH">VH</option>
+                        </select>
+                    </div>
+                    <!-- New options block for Maxar -->
+                    <div id="maxarImageryOptions" class="satellite-options" style="display: none;">
+                        <label for="maxarCloudCoverSlider">Cloud Cover (%): <span id="maxarCloudCoverValue">10</span>%</label>
+                        <input type="range" id="maxarCloudCoverSlider" min="0" max="100" value="10">
+                    </div>
                 </div>
             </div>
 
