@@ -12,9 +12,7 @@ logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 
-# NOTE: The MGP API base URL. This should be confirmed from Maxar's documentation.
-MGP_API_BASE_URL = "https://api.maxar.com"
-
+MGP_API_BASE_URL = "https://api.maxar.com/discovery/v1"
 
 class MaxarProvider(ImageProvider):
     """
@@ -25,13 +23,11 @@ class MaxarProvider(ImageProvider):
     def authenticate(self):
         """
         Validates the API key by setting up the session headers.
-        A proper implementation would make a test call to a 'ping' or 'health' endpoint.
         """
         self.api_key = self.credentials.get("api_key")
         if not self.api_key:
             raise ValueError("Maxar Provider requires an 'api_key' in credentials.")
         
-        # We will use this session object for all subsequent requests.
         self.session = requests.Session()
         self.session.headers.update({"Authorization": f"Bearer {self.api_key}"})
         logging.info("Maxar provider session configured with API key.")
@@ -49,9 +45,7 @@ class MaxarProvider(ImageProvider):
             if not acquisition_date_str:
                 continue
             
-            # Ensure the acquisition date is timezone-aware for correct comparison
             acquisition_dt = datetime.fromisoformat(acquisition_date_str.replace("Z", "+00:00"))
-            
             time_diff = abs((acquisition_dt - target_dt).total_seconds())
             
             if time_diff < min_time_diff:
@@ -66,38 +60,32 @@ class MaxarProvider(ImageProvider):
         """
         Searches the Maxar STAC API for an image and downloads the best match.
         """
-        # 1. Define the search endpoint for the MGP STAC API
-        search_url = f"{MGP_API_BASE_URL}/stac/v1/search"
+        # 1. Define the search URL using the 'imagery' sub-catalog and add area-based calculations
+        search_url = f"{MGP_API_BASE_URL}/catalogs/imagery/search?area-based-calc=true"
         
         # 2. Construct the search payload
-        # The date range needs to be in ISO 8601 format
         datetime_range = f"{start_date}T00:00:00Z/{end_date}T23:59:59Z"
-        
-        # The bounding box for the search
         bbox = [lon_st, lat_st, lon_ed, lat_ed]
-        
-        # Cloud cover is typically represented as a value between 0 and 1
         cloud_cover = int(options.get("cloud_cover", 10)) / 100.0
 
-        # This is a standard STAC API search payload
         search_payload = {
-            "collections": ["maxar-imagery"], # This collection name should be verified
+            "collections": ["maxar-imagery"], # This is a general collection for Maxar imagery
             "bbox": bbox,
             "datetime": datetime_range,
             "query": {
                 "eo:cloud_cover": {
-                    "lte": cloud_cover # "lte" means "less than or equal to"
+                    "lte": cloud_cover 
                 }
             },
-            "limit": 25 # Request a reasonable number of results to find the best one
+            "limit": 100 
         }
         
-        logging.info(f"Searching Maxar API with payload: {search_payload}")
+        logging.info(f"Searching Maxar API at {search_url} with payload: {search_payload}")
         
         # 3. Make the search request
         try:
             response = self.session.post(search_url, json=search_payload)
-            response.raise_for_status() # Raise an exception for bad status codes (4xx or 5xx)
+            response.raise_for_status()
             search_results = response.json()
         except requests.exceptions.RequestException as e:
             logging.error(f"Maxar API search request failed: {e}")
@@ -113,22 +101,25 @@ class MaxarProvider(ImageProvider):
             raise ValueError("Found images, but could not determine the best match (check datetime properties).")
 
         acquisition_date = best_image_feature["properties"]["datetime"]
-        logging.info(f"Best image found. Acquisition date: {acquisition_date}")
+        
+        # Log the specific cloud cover for the AOI if available
+        area_cloud_cover = best_image_feature["properties"].get("area:cloud_cover_percentage")
+        if area_cloud_cover is not None:
+             logging.info(f"Best image found. Acquisition date: {acquisition_date}. Cloud cover for AOI: {area_cloud_cover:.2f}%")
+        else:
+             logging.info(f"Best image found. Acquisition date: {acquisition_date}")
         
         # 5. Get the download URL from the 'assets'
-        # We look for the 'visual' asset, which is typically the display-ready image.
-        # The asset key might be different, e.g., 'data', 'analytic', etc.
         assets = best_image_feature.get("assets", {})
         download_url = assets.get("visual", {}).get("href")
         
         if not download_url:
             raise ValueError("Selected image feature does not have a downloadable 'visual' asset URL.")
-            
+
         logging.info(f"Downloading image from: {download_url}")
-        
+
         # 6. Download the actual image file
         try:
-            # Use streaming to handle potentially large image files efficiently
             with self.session.get(download_url, stream=True) as r:
                 r.raise_for_status()
                 with open(output_path, 'wb') as f:
@@ -140,6 +131,5 @@ class MaxarProvider(ImageProvider):
             
         logging.info(f"Successfully downloaded Maxar image to: {output_path}")
         
-        # Return the path and the exact date of the acquired image
         image_date_str = datetime.fromisoformat(acquisition_date.replace("Z", "+00:00")).strftime("%Y-%m-%d")
         return output_path, image_date_str
