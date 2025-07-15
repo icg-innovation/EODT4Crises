@@ -100,9 +100,11 @@ document.addEventListener('DOMContentLoaded', () => {
         osmGeoJSON: document.getElementById('download-osm-geojson'),
         gtMask: document.getElementById('download-gt-mask'),
         preSat: document.getElementById('download-pre-sat'),
+        preGeoTiff: document.getElementById('download-pre-geotiff'),
         preMask: document.getElementById('download-pre-mask'),
         preGeoJSON: document.getElementById('download-pre-geojson'),
         postSat: document.getElementById('download-post-sat'),
+        postGeoTiff: document.getElementById('download-post-geotiff'),
         postMask: document.getElementById('download-post-mask'),
         postGeoJSON: document.getElementById('download-post-geojson'),
         damageGeoJSON: document.getElementById('download-damage-geojson'),
@@ -254,11 +256,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
     satelliteSelect.addEventListener('change', () => {
         const selectedSatellite = satelliteSelect.value;
+        const selectedProvider = dataSourceSelect.value;
+
         document.querySelectorAll('.satellite-options').forEach(el => el.style.display = 'none');
-        if (selectedSatellite === 'sentinel_1') sentinel1Options.style.display = 'block';
-        else if (selectedSatellite === 'sentinel_2') sentinel2Options.style.display = 'block';
-        else if (selectedSatellite === 'sentinel_2_nir') sentinel2NIROptions.style.display = 'block';
-        else if (selectedSatellite === 'maxar_imagery') maxarImageryOptions.style.display = 'block';
+
+        // Only show the specific options (cloud cover, etc.) if the provider is NOT local
+        if (selectedProvider !== 'local') {
+            if (selectedSatellite === 'sentinel_1') sentinel1Options.style.display = 'block';
+            else if (selectedSatellite === 'sentinel_2') sentinel2Options.style.display = 'block';
+            else if (selectedSatellite === 'sentinel_2_nir') sentinel2NIROptions.style.display = 'block';
+            else if (selectedSatellite === 'maxar_imagery') maxarImageryOptions.style.display = 'block';
+        }
     });
 
     function updateSatelliteOptions(provider) {
@@ -296,14 +304,31 @@ document.addEventListener('DOMContentLoaded', () => {
             const uploadRes = await fetch(`${API_BASE_URL}/api/upload_image`, { method: 'POST', body: formData });
             if (!uploadRes.ok) throw new Error((await uploadRes.json()).error);
             const uploadData = await uploadRes.json();
+
+            // Update the download link for the uploaded GeoTIFF
+            if (uploadData.rawTiffUrl) {
+                const tiffLinkElement = (prefix === 'pre') ? downloadLinks.preGeoTiff : downloadLinks.postGeoTiff;
+                tiffLinkElement.href = uploadData.rawTiffUrl;
+                tiffLinkElement.download = `${prefix}_event_satellite_uploaded.tif`;
+                tiffLinkElement.classList.remove('disabled');
+            }
+            
             const processUrl = `${API_BASE_URL}/api/process_satellite_image?satellite=${selectedSatellite}&prefix=${prefix}`;
             const processRes = await fetch(processUrl);
             if (!processRes.ok) throw new Error((await processRes.json()).error);
             const processData = await processRes.json();
+
             Object.assign(analysisState[prefix], processData);
             analysisState[prefix].satellite = selectedSatellite;
             analysisState[prefix].satLayer = L.imageOverlay(processData.imageUrl, processData.bounds, { opacity: 1.0 }).addTo(map);
             document.getElementById(`${prefix}ImageDateDisplay`).innerHTML = `<b>Image Date:</b> ${uploadData.imageDate}`;
+            
+            // Update the download link for the processed PNG
+            const pngLinkElement = (prefix === 'pre') ? downloadLinks.preSat : downloadLinks.postSat;
+            pngLinkElement.href = processData.imageUrl;
+            pngLinkElement.download = `${prefix}_event_satellite_processed.png`;
+            pngLinkElement.classList.remove('disabled');
+
             const imageBounds = L.latLngBounds(processData.bounds);
             map.fitBounds(imageBounds);
             const satControls = (prefix === 'pre') ? preSatControls : postSatControls;
@@ -355,6 +380,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     
     function buildApiRequestBody(prefix) {
+        if (!drawnRectangle) return null; // Should not happen if button is disabled, but good practice
         const bbox = drawnRectangle.getBounds().toBBoxString();
         const source_provider = dataSourceSelect.value;
         const satellite = satelliteSelect.value;
@@ -392,6 +418,15 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             if (!downloadRes.ok) throw new Error((await downloadRes.json()).error);
             const downloadData = await downloadRes.json();
+
+            // Update the download link for the raw GeoTIFF
+            if (downloadData.rawTiffUrl) {
+                const tiffLinkElement = (prefix === 'pre') ? downloadLinks.preGeoTiff : downloadLinks.postGeoTiff;
+                tiffLinkElement.href = downloadData.rawTiffUrl;
+                tiffLinkElement.download = `${prefix}_event_satellite.tif`;
+                tiffLinkElement.classList.remove('disabled');
+            }
+
             showLoader(`Processing ${prefix}-event image...`);
             let processUrl = `${API_BASE_URL}/api/process_satellite_image?satellite=${params.options.satellite}&prefix=${prefix}`;
             if (downloadData.stac_bbox) {
@@ -404,10 +439,13 @@ document.addEventListener('DOMContentLoaded', () => {
             analysisState[prefix].satellite = params.options.satellite;
             analysisState[prefix].satLayer = L.imageOverlay(processData.imageUrl, processData.bounds, { opacity: 1.0 }).addTo(map);
             document.getElementById(`${prefix}ImageDateDisplay`).innerHTML = `<b>Image Date:</b> ${downloadData.imageDate}`;
-            const linkElement = (prefix === 'pre') ? downloadLinks.preSat : downloadLinks.postSat;
-            linkElement.href = processData.imageUrl;
-            linkElement.download = `${prefix}_event_satellite.png`;
-            linkElement.classList.remove('disabled');
+
+            // Update the download link for the processed PNG
+            const pngLinkElement = (prefix === 'pre') ? downloadLinks.preSat : downloadLinks.postSat;
+            pngLinkElement.href = processData.imageUrl;
+            pngLinkElement.download = `${prefix}_event_satellite_processed.png`;
+            pngLinkElement.classList.remove('disabled');
+
             return true;
         } catch (error) {
             console.error(`Error for ${prefix}-event image:`, error);

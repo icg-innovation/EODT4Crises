@@ -188,7 +188,7 @@ def get_roads():
 def upload_image():
     if 'file' not in request.files:
         return jsonify({"error": "No file part in the request"}), 400
-
+    
     file = request.files['file']
     prefix = request.form.get('prefix', 'temp') # e.g., 'pre' or 'post'
 
@@ -196,26 +196,32 @@ def upload_image():
         return jsonify({"error": "No selected file"}), 400
 
     if file and file.filename.lower().endswith(('.tif', '.tiff')):
-        # Use a secure filename and save it with the correct prefix
-        filename = secure_filename(file.filename)
-        save_path = os.path.join(backend_static_folder, f"temp_satellite_{prefix}.tif")
-
+        # Use a consistent filename for the raw GeoTIFF
+        raw_tiff_filename = f"temp_satellite_{prefix}.tif"
+        save_path = os.path.join(backend_static_folder, raw_tiff_filename)
+        
         try:
             file.save(save_path)
             logging.info(f"Uploaded file saved to: {save_path}")
+            
+            # Construct the URL that the frontend can use to access the file
+            raw_tiff_url = f"/static/{raw_tiff_filename}"
+
             # Return the path and a generic date for the frontend to use
             return jsonify({
                 "message": "Upload successful",
                 "imageDate": "N/A (Local Upload)",
-                "prefix": prefix
+                "prefix": prefix,
+                "rawTiffUrl": raw_tiff_url # Add this URL to the response
             })
         except Exception as e:
             logging.error(f"Failed to save uploaded file: {e}")
             return jsonify({"error": "Failed to save file on server."}), 500
-
+    
     return jsonify({"error": "Invalid file type. Please upload a GeoTIFF (.tif, .tiff)."}), 400
 
 
+# --- MODIFIED ROUTE for downloading satellite images from remote providers ---
 @app.route("/api/download_satellite_image", methods=["POST"])
 def download_satellite_image():
     data = request.get_json()
@@ -237,7 +243,8 @@ def download_satellite_image():
     except (ValueError, IndexError):
         return jsonify({"error": "Invalid 'bbox' format."}), 400
 
-    geotiff_path = os.path.join(backend_static_folder, f"temp_satellite_{prefix}.tif")
+    geotiff_filename = f"temp_satellite_{prefix}.tif"
+    geotiff_path = os.path.join(backend_static_folder, geotiff_filename)
 
     try:
         provider = get_provider(source_provider, credentials)
@@ -251,12 +258,16 @@ def download_satellite_image():
             options=options
         )
 
-        # Include the STAC bounding box in the response to the frontend
+        # Construct the URL for the downloaded GeoTIFF
+        raw_tiff_url = f"/static/{geotiff_filename}"
+
+        # Include the STAC bounding box and the raw TIFF URL in the response
         return jsonify({
             "message": "Download successful",
             "imageDate": image_date,
             "prefix": prefix,
-            "stac_bbox": stac_bbox # Add this line
+            "stac_bbox": stac_bbox,
+            "rawTiffUrl": raw_tiff_url
         })
 
     except Exception as e:
