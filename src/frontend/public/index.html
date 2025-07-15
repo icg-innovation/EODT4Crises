@@ -105,6 +105,7 @@
                     <select id="dataSourceSelect">
                         <option value="gee" selected>Google Earth Engine</option>
                         <option value="maxar">Maxar</option>
+                        <option value="local">Local GeoTIFF Upload</option>
                         <option value="planet" disabled>Planet API (Coming Soon)</option>
                     </select>
                 </div>
@@ -122,6 +123,15 @@
                 <div id="maxarOptionsContainer" class="provider-options" style="display: none;">
                     <label for="maxarApiKeyInput">Maxar API Key:</label>
                     <input type="password" id="maxarApiKeyInput" placeholder="Enter your Maxar API key">
+                </div>
+
+                <div id="localOptionsContainer" class="provider-options" style="display: none;">
+                    <div class="upload-container-split">
+                        <input type="file" id="preEventUpload" accept=".tif,.tiff" style="display: none;">
+                        <label for="preEventUpload" class="action-button upload-label">Upload Pre-Event</label>
+                        <input type="file" id="postEventUpload" accept=".tif,.tiff" style="display: none;">
+                        <label for="postEventUpload" class="action-button upload-label">Upload Post-Event</label>
+                    </div>
                 </div>
 
                 <!-- This container holds all satellite-specific controls -->

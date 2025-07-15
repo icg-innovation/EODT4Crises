@@ -34,6 +34,10 @@ def process_geotiff_image(tif_path, save_path, satellite, size=(512, 512), brigh
             # assume first three bands are RGB.
             img = src.read([1, 2, 3])
             img = np.transpose(img, (1, 2, 0))
+        elif satellite == "local_imagery":
+            # Local imagery is assumed to be RGB.
+            img = src.read([1, 2, 3])
+            img = np.transpose(img, (1, 2, 0))
         else:
             raise ValueError(f"Processing not implemented for satellite: {satellite}")
 

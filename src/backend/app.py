@@ -15,6 +15,8 @@ from datetime import datetime
 
 from pyproj import Transformer
 import logging
+from werkzeug.utils import secure_filename
+
 from PIL import Image, ImageDraw
 from shapely.geometry import shape, LineString
 from shapely.ops import unary_union
@@ -182,6 +184,37 @@ def get_roads():
 
     return jsonify(overpass_to_geojson(data))
 
+@app.route("/api/upload_image", methods=["POST"])
+def upload_image():
+    if 'file' not in request.files:
+        return jsonify({"error": "No file part in the request"}), 400
+
+    file = request.files['file']
+    prefix = request.form.get('prefix', 'temp') # e.g., 'pre' or 'post'
+
+    if file.filename == '':
+        return jsonify({"error": "No selected file"}), 400
+
+    if file and file.filename.lower().endswith(('.tif', '.tiff')):
+        # Use a secure filename and save it with the correct prefix
+        filename = secure_filename(file.filename)
+        save_path = os.path.join(backend_static_folder, f"temp_satellite_{prefix}.tif")
+
+        try:
+            file.save(save_path)
+            logging.info(f"Uploaded file saved to: {save_path}")
+            # Return the path and a generic date for the frontend to use
+            return jsonify({
+                "message": "Upload successful",
+                "imageDate": "N/A (Local Upload)",
+                "prefix": prefix
+            })
+        except Exception as e:
+            logging.error(f"Failed to save uploaded file: {e}")
+            return jsonify({"error": "Failed to save file on server."}), 500
+
+    return jsonify({"error": "Invalid file type. Please upload a GeoTIFF (.tif, .tiff)."}), 400
+
 
 @app.route("/api/download_satellite_image", methods=["POST"])
 def download_satellite_image():
@@ -205,10 +238,10 @@ def download_satellite_image():
         return jsonify({"error": "Invalid 'bbox' format."}), 400
 
     geotiff_path = os.path.join(backend_static_folder, f"temp_satellite_{prefix}.tif")
-    
+
     try:
         provider = get_provider(source_provider, credentials)
-        
+
         # The provider now returns three values
         _, image_date, stac_bbox = provider.download_image(
             lat_st=lat_st, lon_st=lon_st, lat_ed=lat_ed, lon_ed=lon_ed,
@@ -217,11 +250,11 @@ def download_satellite_image():
             scale=5,
             options=options
         )
-        
+
         # Include the STAC bounding box in the response to the frontend
         return jsonify({
-            "message": "Download successful", 
-            "imageDate": image_date, 
+            "message": "Download successful",
+            "imageDate": image_date,
             "prefix": prefix,
             "stac_bbox": stac_bbox # Add this line
         })
@@ -235,7 +268,7 @@ def process_satellite_image():
     satellite = request.args.get("satellite")
     prefix = request.args.get("prefix")
     # Get the optional stac_bbox, which will be a comma-separated string
-    stac_bbox_str = request.args.get("stac_bbox") 
+    stac_bbox_str = request.args.get("stac_bbox")
 
     if not prefix:
         return jsonify({"error": "Missing prefix"}), 400

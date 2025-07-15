@@ -3,14 +3,14 @@ from typing import Dict, Any
 from .base_provider import ImageProvider
 from .gee_provider import GEEProvider
 from .maxar_provider import MaxarProvider
+from .local_provider import LocalProvider
 # from .planet_provider import PlanetProvider  <- Uncomment when you implement it
-# from .local_provider import LocalProvider    <- Uncomment when you implement it
 
 PROVIDER_MAP = {
     "gee": GEEProvider,
     "maxar": MaxarProvider,
+    "local": LocalProvider
     # "planet": PlanetProvider,
-    # "local": LocalProvider
 }
 
 def get_provider(provider_name: str, credentials: Dict[str, Any]) -> ImageProvider:
