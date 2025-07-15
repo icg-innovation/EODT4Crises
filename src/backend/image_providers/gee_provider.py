@@ -123,4 +123,6 @@ class GEEProvider(ImageProvider):
             f.write(response.content)
         logging.info(f"Downloaded image to {output_path}")
 
-        return output_path, image_date_str
+        return output_path, image_date_str, [
+            lon_st, lat_st, lon_ed, lat_ed
+        ]
