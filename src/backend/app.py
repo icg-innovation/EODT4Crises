@@ -183,28 +183,21 @@ def get_roads():
     return jsonify(overpass_to_geojson(data))
 
 
-@app.route("/api/download_satellite_image", methods=["POST"]) # Changed to POST for security
+@app.route("/api/download_satellite_image", methods=["POST"])
 def download_satellite_image():
-    # Get data from JSON body instead of query params
     data = request.get_json()
     
-    # Core parameters
     bbox = data.get("bbox")
     start_date = data.get("start_date")
     end_date = data.get("end_date")
     target_date = data.get("target_date")
     prefix = data.get("prefix", "temp")
+    source_provider = data.get("source_provider")
+    credentials = data.get("credentials", {})
+    options = data.get("options", {})
 
-    # New provider-related parameters
-    source_provider = data.get("source_provider") # e.g., "gee", "planet"
-    credentials = data.get("credentials", {})     # e.g., {"project_id": "...", "api_key": "..."}
-
-    # Provider-specific options
-    options = data.get("options", {})              # e.g., {"satellite": "sentinel_1", "polarization": "VV"}
-
-    # --- Validation ---
     if not all([bbox, start_date, end_date, target_date, source_provider]):
-        return jsonify({"error": "Missing required parameters in request body"}), 400
+        return jsonify({"error": "Missing required parameters"}), 400
 
     try:
         lon_st, lat_st, lon_ed, lat_ed = [float(coord) for coord in bbox.split(",")]
@@ -212,21 +205,26 @@ def download_satellite_image():
         return jsonify({"error": "Invalid 'bbox' format."}), 400
 
     geotiff_path = os.path.join(backend_static_folder, f"temp_satellite_{prefix}.tif")
-
+    
     try:
-        # 1. Get the correct provider instance from the factory
         provider = get_provider(source_provider, credentials)
-
-        # 2. Call the download method from the common interface
-        _, image_date = provider.download_image(
+        
+        # The provider now returns three values
+        _, image_date, stac_bbox = provider.download_image(
             lat_st=lat_st, lon_st=lon_st, lat_ed=lat_ed, lon_ed=lon_ed,
             start_date=start_date, end_date=end_date, target_date=target_date,
             output_path=geotiff_path,
-            scale=5, # or get from request
+            scale=5,
             options=options
         )
-
-        return jsonify({"message": "Download successful", "imageDate": image_date, "prefix": prefix})
+        
+        # Include the STAC bounding box in the response to the frontend
+        return jsonify({
+            "message": "Download successful", 
+            "imageDate": image_date, 
+            "prefix": prefix,
+            "stac_bbox": stac_bbox # Add this line
+        })
 
     except Exception as e:
         logging.error(f"Image download failed: {e}", exc_info=True)
@@ -234,34 +232,54 @@ def download_satellite_image():
 
 @app.route("/api/process_satellite_image", methods=["GET"])
 def process_satellite_image():
-    satellite = request.args.get("satellite", "sentinel_2")
+    satellite = request.args.get("satellite")
     prefix = request.args.get("prefix")
+    # Get the optional stac_bbox, which will be a comma-separated string
+    stac_bbox_str = request.args.get("stac_bbox") 
+
     if not prefix:
-        return jsonify({"error": "Could not determine processing prefix. Download first."}), 400
+        return jsonify({"error": "Missing prefix"}), 400
 
     geotiff_path = os.path.join(backend_static_folder, f"temp_satellite_{prefix}.tif")
-    logging.info(f"Processing {prefix}-event {satellite} image.")
     if not os.path.exists(geotiff_path):
-        return jsonify({"error": "No satellite data found. Please download data first."}), 404
+        return jsonify({"error": "Satellite data not found"}), 404
 
     try:
         unique_id = f"{prefix}_{int(time.time())}"
         png_filename = f"satellite_image_{unique_id}.png"
         png_path = os.path.join(backend_static_folder, png_filename)
-        bounds_4326 = process_geotiff_image(tif_path=geotiff_path, save_path=png_path, satellite=satellite)
-        if bounds_4326 is None:
-            return jsonify({"error": "Image processing failed or skipped."}), 422
-        leaflet_bounds = [[bounds_4326[0], bounds_4326[2]], [bounds_4326[1], bounds_4326[3]]]
+        
+        leaflet_bounds = None
+        raw_bounds = None
+
+        if stac_bbox_str:
+            # If a STAC bbox is provided (i.e., for Maxar), use it directly
+            lon_min, lat_min, lon_max, lat_max = [float(b) for b in stac_bbox_str.split(',')]
+            # Leaflet needs bounds in [[lat_min, lon_min], [lat_max, lon_max]] format
+            leaflet_bounds = [[lat_min, lon_min], [lat_max, lon_max]]
+            raw_bounds = {"lat_min": lat_min, "lat_max": lat_max, "lon_min": lon_min, "lon_max": lon_max}
+            # Still call process_geotiff_image to convert the file, but we'll ignore its returned bounds
+            process_geotiff_image(tif_path=geotiff_path, save_path=png_path, satellite=satellite)
+        else:
+            # For GEE images, use the original method to extract bounds from the GeoTIFF
+            bounds_4326 = process_geotiff_image(tif_path=geotiff_path, save_path=png_path, satellite=satellite)
+            if bounds_4326:
+                lat_min, lat_max, lon_min, lon_max = bounds_4326
+                leaflet_bounds = [[lat_min, lon_min], [lat_max, lon_max]]
+                raw_bounds = {"lat_min": lat_min, "lat_max": lat_max, "lon_min": lon_min, "lon_max": lon_max}
+
+        if not leaflet_bounds:
+            return jsonify({"error": "Could not determine image bounds."}), 500
+
         return jsonify({
             "imageUrl": f"/static/{png_filename}",
             "bounds": leaflet_bounds,
-            "rawBounds": {"lat_min": bounds_4326[0], "lat_max": bounds_4326[1], "lon_min": bounds_4326[2], "lon_max": bounds_4326[3]}
+            "rawBounds": raw_bounds
         })
     except Exception as e:
         logging.error(f"Image processing failed: {e}", exc_info=True)
         return jsonify({"error": str(e)}), 500
 
-# --- MODIFIED ENDPOINT: Now uses POST and accepts GeoJSON data ---
 @app.route("/api/generate_osm_mask", methods=["POST"])
 def generate_osm_mask():
     try:

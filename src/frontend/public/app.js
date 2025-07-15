@@ -365,15 +365,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (!downloadRes.ok) throw new Error((await downloadRes.json()).error);
             const downloadData = await downloadRes.json();
-            
+
             showLoader(`Processing ${prefix}-event image...`);
-            const processRes = await fetch(`${API_BASE_URL}/api/process_satellite_image?satellite=${params.options.satellite}&prefix=${prefix}`);
+
+            // Construct the URL for the next step
+            let processUrl = `${API_BASE_URL}/api/process_satellite_image?satellite=${params.options.satellite}&prefix=${prefix}`;
+
+            // If we received a stac_bbox from the download step, add it to the URL
+            if (downloadData.stac_bbox) {
+                processUrl += `&stac_bbox=${downloadData.stac_bbox.join(',')}`;
+            }
+
+            const processRes = await fetch(processUrl);
 
             if (!processRes.ok) throw new Error((await processRes.json()).error);
             const processData = await processRes.json();
-            
+
             Object.assign(analysisState[prefix], processData);
             analysisState[prefix].satellite = params.options.satellite;
+            // The opacity is now set to 1.0 by default in the resetWorkflow function
             analysisState[prefix].satLayer = L.imageOverlay(processData.imageUrl, processData.bounds, { opacity: 1.0 }).addTo(map);
             document.getElementById(`${prefix}ImageDateDisplay`).innerHTML = `<b>Image Date:</b> ${downloadData.imageDate}`;
 

@@ -29,6 +29,11 @@ def process_geotiff_image(tif_path, save_path, satellite, size=(512, 512), brigh
             img = np.clip((img - p2) * (255.0 / (p98 - p2)), 0, 255)
             img = img.astype(np.uint8)
             img = np.stack([img]*3, axis=-1)
+        elif satellite == "maxar_imagery":
+            # Maxar image is a browse preview (likely 8-bit RGB).
+            # assume first three bands are RGB.
+            img = src.read([1, 2, 3])
+            img = np.transpose(img, (1, 2, 0))
         else:
             raise ValueError(f"Processing not implemented for satellite: {satellite}")
 
