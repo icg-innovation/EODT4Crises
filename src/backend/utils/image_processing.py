@@ -9,7 +9,6 @@ from pyproj import Transformer
 
 def process_geotiff_image(tif_path, save_path, satellite, size=(512, 512), brightness_factor=1.0):
     with rasterio.open(tif_path) as src:
-        bounds_3857 = src.bounds
 
         if satellite == "sentinel_2":
             img = src.read([1, 2, 3])
@@ -34,10 +33,7 @@ def process_geotiff_image(tif_path, save_path, satellite, size=(512, 512), brigh
             # assume first three bands are RGB.
             img = src.read([1, 2, 3])
             img = np.transpose(img, (1, 2, 0))
-        elif satellite == "local_imagery":
-            # Local imagery is assumed to be RGB.
-            img = src.read([1, 2, 3])
-            img = np.transpose(img, (1, 2, 0))
+            img = img.astype(np.uint8)
         else:
             raise ValueError(f"Processing not implemented for satellite: {satellite}")
 
@@ -53,10 +49,21 @@ def process_geotiff_image(tif_path, save_path, satellite, size=(512, 512), brigh
         logging.info("... pixel size: %s", img.shape)
 
         try:
-            from pyproj import Transformer
-            transformer = Transformer.from_crs("EPSG:3857", "EPSG:4326", always_xy=True)
-            lon_min, lat_min = transformer.transform(bounds_3857.left, bounds_3857.bottom)
-            lon_max, lat_max = transformer.transform(bounds_3857.right, bounds_3857.top)
+            bounds = src.bounds
+            src_crs = src.crs
+
+            if src_crs is None:
+                logging.warning("GeoTIFF has no CRS information.")
+                return None
+
+            if src_crs.to_epsg() == 4326:
+                lon_min, lat_min = bounds.left, bounds.bottom
+                lon_max, lat_max = bounds.right, bounds.top
+            else:
+                transformer = Transformer.from_crs(src_crs, "EPSG:4326", always_xy=True)
+                lon_min, lat_min = transformer.transform(bounds.left, bounds.bottom)
+                lon_max, lat_max = transformer.transform(bounds.right, bounds.top)
+
             return (lat_min, lat_max, lon_min, lon_max)
         except ImportError:
             logging.error("pyproj is not installed. Run 'pip install pyproj' to enable coordinate conversion.")
