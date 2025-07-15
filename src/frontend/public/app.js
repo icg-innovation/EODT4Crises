@@ -8,7 +8,7 @@ document.addEventListener('DOMContentLoaded', () => {
         casing: getComputedStyle(document.documentElement).getPropertyValue('--casing-color').trim()
     };
 
-    const map = L.map('map').setView([39.217, -76.528], 15);
+    const map = L.map('map', { zoomSnap: 0.25, zoomDelta: 0.25 }).setView([39.217, -76.528], 15);
     let baseMapLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
     }).addTo(map);
