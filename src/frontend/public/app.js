@@ -25,9 +25,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }));
 
     // --- Global State and Constants ---
-    const API_BASE_URL = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
-        ? 'http://localhost:4000'
-        : '/eodt4crises/api';
+    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    const API_BASE_URL = isLocal ? 'http://localhost:4000/api' : '/eodt4crises/api';
+    const STATIC_BASE_URL = isLocal ? 'http://localhost:4000' : '/eodt4crises';
+
     let drawnRectangle = null;
     let analysisState = {
         gtMaskLayer: null,
@@ -227,7 +228,7 @@ document.addEventListener('DOMContentLoaded', () => {
         showLoader('Fetching OSM Roads...');
         try {
             const params = new URLSearchParams({ bbox: bbox, types: types, date: historicalDate });
-            const response = await fetch(`${API_BASE_URL}/api/get_roads?${params.toString()}`);
+            const response = await fetch(`${API_BASE_URL}/get_roads?${params.toString()}`);
             if (!response.ok) throw new Error('Failed to fetch OSM roads');
             const geojsonData = await response.json();
             osmRoadsLayer.clearLayers().addData(geojsonData);
@@ -303,31 +304,31 @@ document.addEventListener('DOMContentLoaded', () => {
         formData.append('prefix', prefix);
         showLoader(`Uploading and processing ${prefix}-event image...`);
         try {
-            const uploadRes = await fetch(`${API_BASE_URL}/api/upload_image`, { method: 'POST', body: formData });
+            const uploadRes = await fetch(`${API_BASE_URL}/upload_image`, { method: 'POST', body: formData });
             if (!uploadRes.ok) throw new Error((await uploadRes.json()).error);
             const uploadData = await uploadRes.json();
 
             // Update the download link for the uploaded GeoTIFF
             if (uploadData.rawTiffUrl) {
                 const tiffLinkElement = (prefix === 'pre') ? downloadLinks.preGeoTiff : downloadLinks.postGeoTiff;
-                tiffLinkElement.href = uploadData.rawTiffUrl;
+                tiffLinkElement.href = STATIC_BASE_URL + uploadData.rawTiffUrl;
                 tiffLinkElement.download = `${prefix}_event_satellite_uploaded.tif`;
                 tiffLinkElement.classList.remove('disabled');
             }
             
-            const processUrl = `${API_BASE_URL}/api/process_satellite_image?satellite=${selectedSatellite}&prefix=${prefix}`;
+            const processUrl = `${API_BASE_URL}/process_satellite_image?satellite=${selectedSatellite}&prefix=${prefix}`;
             const processRes = await fetch(processUrl);
             if (!processRes.ok) throw new Error((await processRes.json()).error);
             const processData = await processRes.json();
 
             Object.assign(analysisState[prefix], processData);
             analysisState[prefix].satellite = selectedSatellite;
-            analysisState[prefix].satLayer = L.imageOverlay(processData.imageUrl, processData.bounds, { opacity: 1.0 }).addTo(map);
+            analysisState[prefix].satLayer = L.imageOverlay(STATIC_BASE_URL + processData.imageUrl, processData.bounds, { opacity: 1.0 }).addTo(map);
             document.getElementById(`${prefix}ImageDateDisplay`).innerHTML = `<b>Image Date:</b> ${uploadData.imageDate}`;
             
             // Update the download link for the processed PNG
             const pngLinkElement = (prefix === 'pre') ? downloadLinks.preSat : downloadLinks.postSat;
-            pngLinkElement.href = processData.imageUrl;
+            pngLinkElement.href = STATIC_BASE_URL + processData.imageUrl;
             pngLinkElement.download = `${prefix}_event_satellite_processed.png`;
             pngLinkElement.classList.remove('disabled');
 
@@ -413,7 +414,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function fetchAndProcessImage(prefix, params) {
         try {
-            const downloadRes = await fetch(`${API_BASE_URL}/api/download_satellite_image`, {
+            const downloadRes = await fetch(`${API_BASE_URL}/download_satellite_image`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(params)
@@ -424,13 +425,13 @@ document.addEventListener('DOMContentLoaded', () => {
             // Update the download link for the raw GeoTIFF
             if (downloadData.rawTiffUrl) {
                 const tiffLinkElement = (prefix === 'pre') ? downloadLinks.preGeoTiff : downloadLinks.postGeoTiff;
-                tiffLinkElement.href = downloadData.rawTiffUrl;
+                tiffLinkElement.href = STATIC_BASE_URL + downloadData.rawTiffUrl;
                 tiffLinkElement.download = `${prefix}_event_satellite.tif`;
                 tiffLinkElement.classList.remove('disabled');
             }
 
             showLoader(`Processing ${prefix}-event image...`);
-            let processUrl = `${API_BASE_URL}/api/process_satellite_image?satellite=${params.options.satellite}&prefix=${prefix}`;
+            let processUrl = `${API_BASE_URL}/process_satellite_image?satellite=${params.options.satellite}&prefix=${prefix}`;
             if (downloadData.stac_bbox) {
                 processUrl += `&stac_bbox=${downloadData.stac_bbox.join(',')}`;
             }
@@ -439,12 +440,12 @@ document.addEventListener('DOMContentLoaded', () => {
             const processData = await processRes.json();
             Object.assign(analysisState[prefix], processData);
             analysisState[prefix].satellite = params.options.satellite;
-            analysisState[prefix].satLayer = L.imageOverlay(processData.imageUrl, processData.bounds, { opacity: 1.0 }).addTo(map);
+            analysisState[prefix].satLayer = L.imageOverlay(STATIC_BASE_URL + processData.imageUrl, processData.bounds, { opacity: 1.0 }).addTo(map);
             document.getElementById(`${prefix}ImageDateDisplay`).innerHTML = `<b>Image Date:</b> ${downloadData.imageDate}`;
-
+            
             // Update the download link for the processed PNG
             const pngLinkElement = (prefix === 'pre') ? downloadLinks.preSat : downloadLinks.postSat;
-            pngLinkElement.href = processData.imageUrl;
+            pngLinkElement.href = STATIC_BASE_URL + processData.imageUrl;
             pngLinkElement.download = `${prefix}_event_satellite_processed.png`;
             pngLinkElement.classList.remove('disabled');
 
@@ -490,7 +491,7 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const { lat_min, lat_max, lon_min, lon_max } = imageState.rawBounds;
             const image_bounds = `${lat_min},${lat_max},${lon_min},${lon_max}`;
-            const res = await fetch(`${API_BASE_URL}/api/generate_osm_mask`, {
+            const res = await fetch(`${API_BASE_URL}/generate_osm_mask`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ osm_data: osmData, image_bounds: image_bounds })
@@ -498,10 +499,10 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!res.ok) throw new Error((await res.json()).error);
             const data = await res.json();
             if (analysisState.gtMaskLayer) analysisState.gtMaskLayer.remove();
-            analysisState.gtMaskLayer = L.imageOverlay(data.maskUrl, imageState.bounds, { opacity: 1.0 });
+            analysisState.gtMaskLayer = L.imageOverlay(STATIC_BASE_URL + data.maskUrl, imageState.bounds, { opacity: 1.0 });
             gtMaskControls.style.display = 'block';
             document.getElementById('toggleGtMask').checked = false;
-            downloadLinks.gtMask.href = data.maskUrl;
+            downloadLinks.gtMask.href = STATIC_BASE_URL + data.maskUrl;
             downloadLinks.gtMask.download = `ground_truth_mask.png`;
             downloadLinks.gtMask.classList.remove('disabled');
         } catch (error) {
@@ -519,7 +520,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         showLoader(`Running ${prefix}-event detection...`);
         try {
-            const res = await fetch(`${API_BASE_URL}/api/get_predicted_roads?image_url=${analysisState[prefix].imageUrl}&prefix=${prefix}`);
+            const res = await fetch(`${API_BASE_URL}/get_predicted_roads?image_url=${analysisState[prefix].imageUrl}&prefix=${prefix}`);
             if (!res.ok) throw new Error((await res.json()).error);
             const data = await res.json();
             if (analysisState[prefix].predGraphGroup) analysisState[prefix].predGraphGroup.remove();
@@ -533,12 +534,12 @@ document.addEventListener('DOMContentLoaded', () => {
             const casingLayer = L.geoJSON(data.geojson, { style: casingStyle });
             const mainLayer = L.geoJSON(data.geojson, { style: mainStyle });
             analysisState[prefix].predGraphGroup = L.featureGroup([casingLayer, mainLayer]).addTo(map);
-            analysisState[prefix].predMaskLayer = L.imageOverlay(data.maskUrl, analysisState[prefix].bounds, { opacity: 1.0 });
+            analysisState[prefix].predMaskLayer = L.imageOverlay(STATIC_BASE_URL + data.maskUrl, analysisState[prefix].bounds, { opacity: 1.0 });
             document.getElementById(`${prefix}DetectionControls`).style.display = 'block';
             document.getElementById(`toggle${prefix.charAt(0).toUpperCase() + prefix.slice(1)}PredMask`).checked = false;
             checkWorkflowState();
             const maskLink = (prefix === 'pre') ? downloadLinks.preMask : downloadLinks.postMask;
-            maskLink.href = data.maskUrl;
+            maskLink.href = STATIC_BASE_URL + data.maskUrl;
             maskLink.download = `${prefix}_event_prediction_mask.png`;
             maskLink.classList.remove('disabled');
             const geojsonLink = (prefix === 'pre') ? downloadLinks.preGeoJSON : downloadLinks.postGeoJSON;
@@ -565,7 +566,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         showLoader('Analyzing road damage...');
         try {
-            const res = await fetch(`${API_BASE_URL}/api/compare_roads`, {
+            const res = await fetch(`${API_BASE_URL}/compare_roads`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ osm_data: osmData })
