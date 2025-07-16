@@ -3,7 +3,7 @@
 # ---------------------------------------------------------
 
 # Use NVIDIA's CUDA runtime image with Ubuntu 22.04
-FROM nvidia/cuda:12.7.0-cudnn-runtime-ubuntu22.04
+FROM nvidia/cuda:12.6.3-cudnn-runtime-ubuntu22.04
 
 # Set a working directory
 WORKDIR /app
