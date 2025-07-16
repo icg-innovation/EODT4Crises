@@ -143,7 +143,7 @@ def graph_to_geojson(adjacency_list, geotiff_path):
 def index():
     return send_from_directory(app.static_folder, "index.html")
 
-@app.route("/api/get_roads", methods=["GET"])
+@app.route("/get_roads", methods=["GET"])
 def get_roads():
     bbox = request.args.get("bbox")
     types_str = request.args.get("types")
@@ -184,7 +184,7 @@ def get_roads():
 
     return jsonify(overpass_to_geojson(data))
 
-@app.route("/api/upload_image", methods=["POST"])
+@app.route("/upload_image", methods=["POST"])
 def upload_image():
     if 'file' not in request.files:
         return jsonify({"error": "No file part in the request"}), 400
@@ -220,9 +220,7 @@ def upload_image():
     
     return jsonify({"error": "Invalid file type. Please upload a GeoTIFF (.tif, .tiff)."}), 400
 
-
-# --- MODIFIED ROUTE for downloading satellite images from remote providers ---
-@app.route("/api/download_satellite_image", methods=["POST"])
+@app.route("/download_satellite_image", methods=["POST"])
 def download_satellite_image():
     data = request.get_json()
     
@@ -274,7 +272,7 @@ def download_satellite_image():
         logging.error(f"Image download failed: {e}", exc_info=True)
         return jsonify({"error": str(e)}), 500
 
-@app.route("/api/process_satellite_image", methods=["GET"])
+@app.route("/process_satellite_image", methods=["GET"])
 def process_satellite_image():
     satellite = request.args.get("satellite")
     prefix = request.args.get("prefix")
@@ -324,7 +322,7 @@ def process_satellite_image():
         logging.error(f"Image processing failed: {e}", exc_info=True)
         return jsonify({"error": str(e)}), 500
 
-@app.route("/api/generate_osm_mask", methods=["POST"])
+@app.route("/generate_osm_mask", methods=["POST"])
 def generate_osm_mask():
     try:
         # Get data from the POST request body
@@ -351,7 +349,7 @@ def generate_osm_mask():
         return jsonify({"error": str(e)}), 500
 
 
-@app.route("/api/get_predicted_roads", methods=["GET"])
+@app.route("/get_predicted_roads", methods=["GET"])
 def get_predicted_roads():
     satellite_image_url = request.args.get("image_url")
     prefix = request.args.get("prefix", "pred")
@@ -395,8 +393,7 @@ def get_predicted_roads():
     except Exception as e:
         return jsonify({"error": f"Failed to process model output: {str(e)}"}), 500
 
-# --- MODIFIED ENDPOINT: Now uses POST and accepts OSM GeoJSON data ---
-@app.route("/api/compare_roads", methods=["POST"])
+@app.route("/compare_roads", methods=["POST"])
 def compare_roads():
     try:
         # 1. Get OSM data from the POST request body
