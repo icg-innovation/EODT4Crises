@@ -1,37 +1,75 @@
-# backend/Dockerfile
+# ---------------------------------------------------------
+# GPU-enabled Dockerfile for your backend
+# ---------------------------------------------------------
 
-# 1. Use an official Python runtime as a parent image
-FROM python:3.11-slim
+# Use NVIDIA's CUDA runtime image with Ubuntu 22.04
+FROM nvidia/cuda:12.7.0-cudnn-runtime-ubuntu22.04
 
-# 2. Set the working directory inside the container
+# Set a working directory
 WORKDIR /app
 
-# 3. Install system dependencies required by Python packages and gcloud
-RUN apt-get update && apt-get install -y \
-    libexpat1 \
-    apt-transport-https \
+# Install basic build tools and system libraries
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    build-essential \
+    gcc \
+    g++ \
+    libgl1 \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender-dev \
+    libspatialindex-dev \
+    libgdal-dev \
+    gdal-bin \
+    libproj-dev \
+    curl \
     ca-certificates \
     gnupg \
-    curl \
+    git \
     && rm -rf /var/lib/apt/lists/*
 
-# 4. Install the Google Cloud SDK
-RUN echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main" | tee -a /etc/apt/sources.list.d/google-cloud-sdk.list \
-    && curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key --keyring /usr/share/keyrings/cloud.google.gpg add - \
-    && apt-get update && apt-get install -y google-cloud-sdk
+# Install Google Cloud SDK
+RUN echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main" \
+    | tee -a /etc/apt/sources.list.d/google-cloud-sdk.list && \
+    curl https://packages.cloud.google.com/apt/doc/apt-key.gpg \
+    | apt-key --keyring /usr/share/keyrings/cloud.google.gpg add - && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends google-cloud-sdk && \
+    rm -rf /var/lib/apt/lists/*
 
-# 5. Copy the requirements file into the container
+# Optional: Set GDAL paths if needed
+ENV CPLUS_INCLUDE_PATH=/usr/include/gdal
+ENV C_INCLUDE_PATH=/usr/include/gdal
+
+# Install Python
+# The base CUDA images often lack Python.
+# We'll install Python 3.11 from deadsnakes:
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        python3.11 \
+        python3.11-venv \
+        python3.11-dev \
+        python3-pip && \
+    rm -rf /var/lib/apt/lists/*
+
+# Symlink python3.11 to python for convenience
+RUN ln -s /usr/bin/python3.11 /usr/local/bin/python
+
+# Upgrade pip
+RUN pip install --no-cache-dir --upgrade pip
+
+# Copy requirements.txt
 COPY requirements.txt .
 
-# 6. Install any needed packages specified in requirements.txt
+# Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# 7. Copy the rest of the backend application code into the container
+# Copy your backend code
 COPY . .
 
-# 8. Expose the port the app runs on
+# Expose the backend port
 EXPOSE 4000
 
-# 9. Define the command to run the application using Gunicorn
+# Run the backend via Gunicorn
 CMD ["gunicorn", "--bind", "0.0.0.0:4000", "app:app"]
-
