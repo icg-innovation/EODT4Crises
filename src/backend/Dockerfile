@@ -47,21 +47,20 @@ RUN apt-get update && \
         python3.11 \
         python3.11-venv \
         python3.11-dev \
-        python3-pip && \
-    ln -s /usr/bin/python3.11 /usr/bin/python && \
-    rm -rf /var/lib/apt/lists/*
+    && ln -s /usr/bin/python3.11 /usr/bin/python \
+    && rm -rf /var/lib/apt/lists/*
 
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 
-# Upgrade pip
-RUN pip install --no-cache-dir --upgrade pip
+# Upgrade pip for Python 3.11
+RUN python3.11 -m pip install --no-cache-dir --upgrade pip
 
 # Copy requirements.txt
 COPY requirements.txt .
 
-# Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+# Install Python dependencies using the correct pip
+RUN python3.11 -m pip install --no-cache-dir -r requirements.txt
 
 # Copy your backend code
 COPY . .
