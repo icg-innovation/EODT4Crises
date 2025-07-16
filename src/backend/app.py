@@ -13,7 +13,7 @@ import rasterio
 from rasterio.transform import Affine
 from datetime import datetime
 
-from torch.cuda import is_available as cuda_available
+from torch.cuda import is_available
 
 from pyproj import Transformer
 import logging
@@ -370,7 +370,7 @@ def get_predicted_roads():
         model_output_dir = os.path.join(SAM_ROAD_PROJECT_DIR, "save", output_dir_name)
         python_executable = sys.executable
         inference_script_path = os.path.join(SAM_ROAD_PROJECT_DIR, "inferencer.py")
-        torch_device = "cuda" if torch.cuda.is_available() else "cpu"
+        torch_device = "cuda" if is_available() else "cpu"
 
         command = [
             python_executable, inference_script_path,
