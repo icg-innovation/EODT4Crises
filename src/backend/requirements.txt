@@ -1,0 +1,17 @@
+# Flask and Web Server
+Flask
+Flask-Cors
+gunicorn
+
+# API and HTTP Requests
+requests
+earthengine-api
+
+# Geospatial Libraries
+rasterio
+Pillow
+shapely
+pyproj
+
+# Werkzeug is used for secure filenames
+Werkzeug

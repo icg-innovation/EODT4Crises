@@ -1,0 +1,29 @@
+# docker-compose.yml
+
+version: '3.8'
+
+services:
+  # The Backend Service (Flask API)
+  backend:
+    # The build context is now ./src/backend, where your Dockerfile is
+    build: ./src/backend
+    container_name: eodt-backend
+    ports:
+      - "4000:4000"
+    volumes:
+      # Mounts your backend code for live updates
+      - ./src/backend:/app
+    restart: unless-stopped
+
+  # The Frontend Service (HTML/JS/CSS)
+  frontend:
+    image: nginx:alpine
+    container_name: eodt-frontend
+    ports:
+      - "8080:80"
+    volumes:
+      # Mounts your frontend files from the public sub-directory
+      - ./src/frontend/public:/usr/share/nginx/html
+    depends_on:
+      - backend
+    restart: unless-stopped

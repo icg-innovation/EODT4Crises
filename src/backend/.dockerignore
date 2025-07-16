@@ -1,0 +1,21 @@
+# Git and IDE files
+.git
+.gitignore
+.idea/
+.vscode/
+
+# Python cache and virtual environment files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.env
+.pytest_cache
+
+# Static files and model outputs that are handled by volumes
+# This prevents them from being copied into the image build context
+static/
+save/
