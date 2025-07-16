@@ -1,4 +1,5 @@
-# This workflow builds and pushes the backend Docker image to the GitHub Container Registry (GHCR)
+# This workflow builds and pushes both the backend and frontend Docker images
+# to the GitHub Container Registry (GHCR)
 
 name: Docker Build and Push to GHCR
 
@@ -12,21 +13,14 @@ on:
 jobs:
   # This job builds and pushes the backend image
   build-and-push-backend:
-    # The type of runner that the job will run on
     runs-on: ubuntu-latest
-
-    # Grant the GITHUB_TOKEN permissions to write packages
     permissions:
       contents: read
       packages: write
-
-    # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
-      # 1. Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 2. Log in to the GitHub Container Registry
       - name: Log in to GHCR
         uses: docker/login-action@v3
         with:
@@ -34,20 +28,49 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # 3. Extract metadata (tags and labels) for Docker
-      - name: Extract Docker metadata
+      - name: Extract Docker metadata for backend
         id: meta
         uses: docker/metadata-action@v5
         with:
           images: ghcr.io/${{ github.repository_owner }}/eodt-backend
 
-      # 4. Build and push the Docker image for the backend
       - name: Build and push backend image
         uses: docker/build-push-action@v5
         with:
-          context: ./src/backend  # The build context is your backend directory
-          file: ./src/backend/Dockerfile # Specifies the path to the Dockerfile
-          push: true # Actually push the image to the registry
+          context: ./src/backend
+          file: ./src/backend/Dockerfile
+          push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
 
+  # This job builds and pushes the frontend image
+  build-and-push-frontend:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract Docker metadata for frontend
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/eodt-frontend
+
+      - name: Build and push frontend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./src/frontend # The build context is your frontend directory
+          file: ./src/frontend/Dockerfile # Specifies the path to the new Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
