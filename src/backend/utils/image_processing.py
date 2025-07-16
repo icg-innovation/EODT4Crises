@@ -1,6 +1,4 @@
 # backend/utils/image_processing.py
-# (Copy the exact code of the `process_geotiff_image` function here)
-# Make sure to include its imports: rasterio, numpy, PIL, logging, pyproj
 import rasterio
 import numpy as np
 from PIL import Image

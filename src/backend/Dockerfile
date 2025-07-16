@@ -27,6 +27,7 @@ RUN apt-get update && \
     ca-certificates \
     gnupg \
     git \
+    libgl1-mesa-glx \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Google Cloud SDK

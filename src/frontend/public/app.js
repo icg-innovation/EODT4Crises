@@ -523,7 +523,12 @@ document.addEventListener('DOMContentLoaded', () => {
         showLoader(`Running ${prefix}-event detection...`);
         try {
             const res = await fetch(`${API_BASE_URL}/get_predicted_roads?image_url=${analysisState[prefix].imageUrl}&prefix=${prefix}`);
-            if (!res.ok) throw new Error((await res.json()).error);
+
+            if (!res.ok) {
+                const errorData = await res.json();
+                throw new Error(errorData.details || errorData.error);
+            }
+
             const data = await res.json();
             if (analysisState[prefix].predGraphGroup) analysisState[prefix].predGraphGroup.remove();
             if (analysisState[prefix].predMaskLayer) analysisState[prefix].predMaskLayer.remove();
@@ -551,7 +556,7 @@ document.addEventListener('DOMContentLoaded', () => {
             geojsonLink.classList.remove('disabled');
         } catch (error) { 
             console.error(`${prefix} Detection Error:`, error); 
-            alert(`Detection failed: ${error.message}`);
+            alert(`${prefix.charAt(0).toUpperCase() + prefix.slice(1)} Detection failed:\n\n${error.message}`);
         } finally { 
             hideLoader(); 
         }

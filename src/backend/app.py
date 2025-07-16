@@ -35,8 +35,6 @@ SAM_ROAD_PROJECT_DIR = os.path.abspath(os.path.join(CURRENT_DIR, "data_processin
 SPACENET_TRANSFORM_HEIGHT = 400
 backend_static_folder = os.path.abspath(os.path.join(CURRENT_DIR, "static"))
 
-torch_device = "cuda" if cuda_available() else "cpu"
-
 print("--- Cleaning up old generated files ---")
 if os.path.exists(backend_static_folder):
     files_to_delete = glob.glob(os.path.join(backend_static_folder, "*.png"))
@@ -60,7 +58,7 @@ logging.info(f"Serving static files from frontend: {frontend_static_folder}")
 def backend_static(filename):
     return send_from_directory(backend_static_folder, filename)
 
-CORS(app)
+CORS(app, resources={r"/api/*": {"origins": "*"}})
 
 def overpass_to_geojson(overpass_json):
     nodes = {}
@@ -355,47 +353,62 @@ def generate_osm_mask():
 
 @app.route("/api/get_predicted_roads", methods=["GET"])
 def get_predicted_roads():
-    satellite_image_url = request.args.get("image_url")
-    prefix = request.args.get("prefix", "pred")
-    if not satellite_image_url:
-        return jsonify({"error": "Missing 'image_url' parameter."}), 400
-
-    input_filename = os.path.basename(satellite_image_url).split("?")[0]
-    input_image_path = os.path.abspath(os.path.join(backend_static_folder, input_filename))
-    if not os.path.exists(input_image_path):
-        return jsonify({"error": f"Satellite image not found on server: {input_filename}"}), 404
-
-    output_dir_name = f"sentinel_test_{prefix}"
-    model_output_dir = os.path.join(SAM_ROAD_PROJECT_DIR, "save", output_dir_name)
-    python_executable = sys.executable
-    inference_script_path = os.path.join(SAM_ROAD_PROJECT_DIR, "inferencer.py")
-    command = [
-        python_executable, inference_script_path,
-        "--config", SAM_ROAD_CONFIG_PATH, "--checkpoint", SAM_ROAD_CHECKPOINT_PATH,
-        "--device", torch_device, "--images", input_image_path, "--output_dir", output_dir_name,
-    ]
+    # This outer try block will catch any unexpected errors
     try:
-        subprocess.run(command, capture_output=True, text=True, check=True, cwd=SAM_ROAD_PROJECT_DIR)
-    except subprocess.CalledProcessError as e:
-        logging.error(f"Inference error: {e.stderr}")
-        return jsonify({"error": "Failed to run road prediction model.", "details": e.stderr}), 500
 
-    graph_path = os.path.join(model_output_dir, "graph", "0.p")
-    mask_image_path = os.path.join(model_output_dir, "mask", "0_road.png")
-    geotiff_path = os.path.join(backend_static_folder, f"temp_satellite_{prefix}.tif")
-    if not all(os.path.exists(p) for p in [graph_path, mask_image_path, geotiff_path]):
-        return jsonify({"error": "Model output or georeference file not found."}), 500
-        
-    try:
+        satellite_image_url = request.args.get("image_url")
+        prefix = request.args.get("prefix", "pred")
+        if not satellite_image_url:
+            return jsonify({"error": "Missing 'image_url' parameter."}), 400
+
+        input_filename = os.path.basename(satellite_image_url).split("?")[0]
+        input_image_path = os.path.abspath(os.path.join(backend_static_folder, input_filename))
+        if not os.path.exists(input_image_path):
+            return jsonify({"error": f"Satellite image not found on server: {input_filename}"}), 404
+
+        output_dir_name = f"sentinel_test_{prefix}"
+        model_output_dir = os.path.join(SAM_ROAD_PROJECT_DIR, "save", output_dir_name)
+        python_executable = sys.executable
+        inference_script_path = os.path.join(SAM_ROAD_PROJECT_DIR, "inferencer.py")
+        torch_device = "cuda" if torch.cuda.is_available() else "cpu"
+
+        command = [
+            python_executable, inference_script_path,
+            "--config", SAM_ROAD_CONFIG_PATH, "--checkpoint", SAM_ROAD_CHECKPOINT_PATH,
+            "--device", torch_device, "--images", input_image_path, "--output_dir", output_dir_name,
+        ]
+
+        # This inner try block specifically handles the subprocess error
+        try:
+            subprocess.run(command, capture_output=True, text=True, check=True, cwd=SAM_ROAD_PROJECT_DIR)
+        except subprocess.CalledProcessError as e:
+            logging.error(f"Inference error: {e.stderr}")
+            return jsonify({"error": "Failed to run road prediction model.", "details": e.stderr}), 500
+
+        graph_path = os.path.join(model_output_dir, "graph", "0.p")
+        mask_image_path = os.path.join(model_output_dir, "mask", "0_road.png")
+        geotiff_path = os.path.join(backend_static_folder, f"temp_satellite_{prefix}.tif")
+        if not all(os.path.exists(p) for p in [graph_path, mask_image_path, geotiff_path]):
+            return jsonify({"error": "Model output or georeference file not found."}), 500
+
         with open(graph_path, "rb") as f:
             predicted_graph_data = pickle.load(f)
+
         predicted_roads_geojson = graph_to_geojson(predicted_graph_data, geotiff_path)
+
         unique_id = f"{prefix}_{int(time.time())}"
         mask_filename = f"predicted_mask_{unique_id}.png"
         shutil.copy(mask_image_path, os.path.join(backend_static_folder, mask_filename))
+
         return jsonify({"geojson": predicted_roads_geojson, "maskUrl": f"/static/{mask_filename}"})
+
     except Exception as e:
-        return jsonify({"error": f"Failed to process model output: {str(e)}"}), 500
+        logging.error(f"An unexpected error occurred in get_predicted_roads: {e}", exc_info=True)
+        if isinstance(e, subprocess.CalledProcessError):
+             return jsonify({"error": "Failed to run road prediction model.", "details": e.stderr}), 500
+        return jsonify({"error": "An unexpected server error occurred.", "details": str(e)}), 500
+
+
 
 @app.route("/api/compare_roads", methods=["POST"])
 def compare_roads():
@@ -448,7 +461,7 @@ def compare_roads():
 
         result_geojson = {"type": "FeatureCollection", "features": damaged_roads}
         return jsonify({"geojson": result_geojson})
-        
+
     except Exception as e:
         logging.error(f"Error during comparison: {e}", exc_info=True)
         return jsonify({"error": f"An unexpected error occurred during analysis: {e}"}), 500
