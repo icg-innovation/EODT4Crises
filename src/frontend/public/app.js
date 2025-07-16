@@ -25,7 +25,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }));
 
     // --- Global State and Constants ---
-    const API_BASE_URL = 'http://localhost:4000';
+    const API_BASE_URL = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+        ? 'http://localhost:4000'
+        : '/eodt4crises/api';
     let drawnRectangle = null;
     let analysisState = {
         gtMaskLayer: null,
