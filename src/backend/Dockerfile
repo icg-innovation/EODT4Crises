@@ -8,7 +8,7 @@ FROM nvidia/cuda:12.6.3-cudnn-runtime-ubuntu22.04
 # Set a working directory
 WORKDIR /app
 
-# Install basic build tools and system libraries
+# Install Python and set environment variables
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     build-essential \
@@ -29,7 +29,7 @@ RUN apt-get update && \
     git \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Google Cloud SDK (updated to avoid apt-key deprecation)
+# Install Google Cloud SDK
 RUN curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | gpg --dearmor -o /usr/share/keyrings/cloud.google.gpg && \
     echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main" \
     > /etc/apt/sources.list.d/google-cloud-sdk.list && \
@@ -41,20 +41,21 @@ RUN curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | gpg --dearmor -
 ENV CPLUS_INCLUDE_PATH=/usr/include/gdal
 ENV C_INCLUDE_PATH=/usr/include/gdal
 
-# Install Python and set environment variables
+# Install Python and its pip module
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         python3.11 \
         python3.11-venv \
         python3.11-dev \
+        python3.11-distutils \
     && ln -s /usr/bin/python3.11 /usr/bin/python \
     && rm -rf /var/lib/apt/lists/*
 
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 
-# Upgrade pip for Python 3.11
-RUN python3.11 -m pip install --no-cache-dir --upgrade pip
+# Use ensurepip to install pip for Python 3.11
+RUN python3.11 -m ensurepip --upgrade
 
 # Copy requirements.txt
 COPY requirements.txt .
