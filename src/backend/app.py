@@ -13,6 +13,8 @@ import rasterio
 from rasterio.transform import Affine
 from datetime import datetime
 
+from torch.cuda import is_available as cuda_available
+
 from pyproj import Transformer
 import logging
 from werkzeug.utils import secure_filename
@@ -32,6 +34,8 @@ SAM_ROAD_CHECKPOINT_PATH = os.path.abspath(os.path.join(CURRENT_DIR, "model_file
 SAM_ROAD_PROJECT_DIR = os.path.abspath(os.path.join(CURRENT_DIR, "data_processing"))
 SPACENET_TRANSFORM_HEIGHT = 400
 backend_static_folder = os.path.abspath(os.path.join(CURRENT_DIR, "static"))
+
+torch_device = "cuda" if cuda_available() else "cpu"
 
 print("--- Cleaning up old generated files ---")
 if os.path.exists(backend_static_folder):
@@ -368,7 +372,7 @@ def get_predicted_roads():
     command = [
         python_executable, inference_script_path,
         "--config", SAM_ROAD_CONFIG_PATH, "--checkpoint", SAM_ROAD_CHECKPOINT_PATH,
-        "--device", "cpu", "--images", input_image_path, "--output_dir", output_dir_name,
+        "--device", torch_device, "--images", input_image_path, "--output_dir", output_dir_name,
     ]
     try:
         subprocess.run(command, capture_output=True, text=True, check=True, cwd=SAM_ROAD_PROJECT_DIR)
