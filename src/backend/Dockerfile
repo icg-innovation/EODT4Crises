@@ -8,7 +8,7 @@ FROM nvidia/cuda:12.6.3-cudnn-runtime-ubuntu22.04
 # Set a working directory
 WORKDIR /app
 
-# Install Python and set environment variables
+# Install basic build tools and system libraries
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     build-essential \
@@ -41,26 +41,25 @@ RUN curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | gpg --dearmor -
 ENV CPLUS_INCLUDE_PATH=/usr/include/gdal
 ENV C_INCLUDE_PATH=/usr/include/gdal
 
-# Install Python and its pip module
+# Install Python
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         python3.11 \
         python3.11-venv \
         python3.11-dev \
-        python3.11-distutils \
     && ln -s /usr/bin/python3.11 /usr/bin/python \
     && rm -rf /var/lib/apt/lists/*
 
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 
-# Use ensurepip to install pip for Python 3.11
-RUN python3.11 -m ensurepip --upgrade
+# Download and install pip using the official bootstrap script
+RUN curl https://bootstrap.pypa.io/get-pip.py | python3.11
 
 # Copy requirements.txt
 COPY requirements.txt .
 
-# Install Python dependencies using the correct pip
+# Install Python dependencies
 RUN python3.11 -m pip install --no-cache-dir -r requirements.txt
 
 # Copy your backend code
