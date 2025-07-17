@@ -587,8 +587,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const mainLayer = L.geoJSON(data.geojson, { style: mainStyle });
             analysisState.damageLayerGroup = L.featureGroup([casingLayer, mainLayer]).addTo(map);
             damageAnalysisControls.style.display = 'block';
-            if (analysisState.pre.predGraphGroup) map.removeLayer(analysisState.pre.predGraphGroup);
-            if (analysisState.post.predGraphGroup) map.removeLayer(analysisState.post.predGraphGroup);
             map.addLayer(analysisState.damageLayerGroup);
             const blob = new Blob([JSON.stringify(data.geojson, null, 2)], { type: 'application/json' });
             downloadLinks.damageGeoJSON.href = URL.createObjectURL(blob);
