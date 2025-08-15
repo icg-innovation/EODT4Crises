@@ -11,16 +11,14 @@ import shutil
 import pickle
 import rasterio
 from rasterio.transform import Affine
-from datetime import datetime
 
 from torch.cuda import is_available
 
 from pyproj import Transformer
 import logging
-from werkzeug.utils import secure_filename
 
 from PIL import Image, ImageDraw
-from shapely.geometry import shape, LineString
+from shapely.geometry import shape
 from shapely.ops import unary_union
 
 from image_providers.provider_factory import get_provider
@@ -32,7 +30,6 @@ CURRENT_DIR = os.path.dirname(__file__)
 SAM_ROAD_CONFIG_PATH = os.path.abspath(os.path.join(CURRENT_DIR, "model_files", "spacenet_custom.yaml"))
 SAM_ROAD_CHECKPOINT_PATH = os.path.abspath(os.path.join(CURRENT_DIR, "model_files", "spacenet_vitb_256_e10.ckpt"))
 SAM_ROAD_PROJECT_DIR = os.path.abspath(os.path.join(CURRENT_DIR, "data_processing"))
-SPACENET_TRANSFORM_HEIGHT = 400
 backend_static_folder = os.path.abspath(os.path.join(CURRENT_DIR, "static"))
 
 print("--- Cleaning up old generated files ---")
@@ -49,7 +46,6 @@ else:
     os.makedirs(backend_static_folder)
 
 frontend_static_folder = os.path.abspath(os.path.join(CURRENT_DIR, "..", "frontend", "public"))
-backend_static_folder = os.path.abspath(os.path.join(CURRENT_DIR, "static"))
 app = Flask(__name__, static_folder=frontend_static_folder, static_url_path="")
 app.config["TEMPLATES_AUTO_RELOAD"] = True
 logging.info(f"Serving static files from frontend: {frontend_static_folder}")
@@ -105,37 +101,33 @@ def create_osm_mask(geojson_data, image_bounds, image_size=(512, 512), line_widt
                 draw.line(pixel_points, fill=255, width=line_width)
     return mask_image
 
-def graph_to_geojson(adjacency_list, geotiff_path):
+def graph_to_geojson(adjacency_list, transform, crs):
     features = []
     try:
-        with rasterio.open(geotiff_path) as src:
-            H_orig, W_orig = src.height, src.width
-            transform = src.transform
-            transformer = Transformer.from_crs(src.crs, "EPSG:4326", always_xy=True)
+        transformer = Transformer.from_crs(crs, "EPSG:4326", always_xy=True)
+        for source_node_yx, dest_nodes_yx in adjacency_list.items():
+            for dest_node_yx in dest_nodes_yx:
+                source_y_pixel, source_x_pixel = source_node_yx
+                dest_y_pixel, dest_x_pixel = dest_node_yx
+                
+                start_x_proj, start_y_proj = (source_x_pixel + 0.5, source_y_pixel + 0.5) * transform
+                end_x_proj, end_y_proj = (dest_x_pixel + 0.5, dest_y_pixel + 0.5) * transform
 
-            for source_node_yx, dest_nodes_yx in adjacency_list.items():
-                for dest_node_yx in dest_nodes_yx:
-                    source_y_pixel, source_x_pixel = source_node_yx
-                    dest_y_pixel, dest_x_pixel = dest_node_yx
-                    
-                    start_x_proj, start_y_proj = (source_x_pixel + 0.5, source_y_pixel + 0.5) * transform
-                    end_x_proj, end_y_proj = (dest_x_pixel + 0.5, dest_y_pixel + 0.5) * transform
+                start_lon, start_lat = transformer.transform(start_x_proj, start_y_proj)
+                end_lon, end_lat = transformer.transform(end_x_proj, end_y_proj)
 
-                    start_lon, start_lat = transformer.transform(start_x_proj, start_y_proj)
-                    end_lon, end_lat = transformer.transform(end_x_proj, end_y_proj)
-
-                    feature = {
-                        "type": "Feature",
-                        "geometry": {
-                            "type": "LineString",
-                            "coordinates": [
-                                [float(start_lon), float(start_lat)],
-                                [float(end_lon), float(end_lat)],
-                            ],
-                        },
-                        "properties": {},
-                    }
-                    features.append(feature)
+                feature = {
+                    "type": "Feature",
+                    "geometry": {
+                        "type": "LineString",
+                        "coordinates": [
+                            [float(start_lon), float(start_lat)],
+                            [float(end_lon), float(end_lat)],
+                        ],
+                    },
+                    "properties": {},
+                }
+                features.append(feature)
     except Exception as e:
         logging.error(f"Error during graph to GeoJSON conversion: {e}")
         return {"type": "FeatureCollection", "features": []}
@@ -192,29 +184,24 @@ def upload_image():
         return jsonify({"error": "No file part in the request"}), 400
     
     file = request.files['file']
-    prefix = request.form.get('prefix', 'temp') # e.g., 'pre' or 'post'
+    prefix = request.form.get('prefix', 'temp')
 
     if file.filename == '':
         return jsonify({"error": "No selected file"}), 400
 
     if file and file.filename.lower().endswith(('.tif', '.tiff')):
-        # Use a consistent filename for the raw GeoTIFF
         raw_tiff_filename = f"temp_satellite_{prefix}.tif"
         save_path = os.path.join(backend_static_folder, raw_tiff_filename)
         
         try:
             file.save(save_path)
             logging.info(f"Uploaded file saved to: {save_path}")
-            
-            # Construct the URL that the frontend can use to access the file
             raw_tiff_url = f"/static/{raw_tiff_filename}"
-
-            # Return the path and a generic date for the frontend to use
             return jsonify({
                 "message": "Upload successful",
                 "imageDate": "N/A (Local Upload)",
                 "prefix": prefix,
-                "rawTiffUrl": raw_tiff_url # Add this URL to the response
+                "rawTiffUrl": raw_tiff_url
             })
         except Exception as e:
             logging.error(f"Failed to save uploaded file: {e}")
@@ -248,8 +235,6 @@ def download_satellite_image():
 
     try:
         provider = get_provider(source_provider, credentials)
-
-        # The provider now returns three values
         _, image_date, stac_bbox = provider.download_image(
             lat_st=lat_st, lon_st=lon_st, lat_ed=lat_ed, lon_ed=lon_ed,
             start_date=start_date, end_date=end_date, target_date=target_date,
@@ -257,11 +242,7 @@ def download_satellite_image():
             scale=5,
             options=options
         )
-
-        # Construct the URL for the downloaded GeoTIFF
         raw_tiff_url = f"/static/{geotiff_filename}"
-
-        # Include the STAC bounding box and the raw TIFF URL in the response
         return jsonify({
             "message": "Download successful",
             "imageDate": image_date,
@@ -278,7 +259,6 @@ def download_satellite_image():
 def process_satellite_image():
     satellite = request.args.get("satellite")
     prefix = request.args.get("prefix")
-    # Get the optional stac_bbox, which will be a comma-separated string
     stac_bbox_str = request.args.get("stac_bbox")
 
     if not prefix:
@@ -297,15 +277,11 @@ def process_satellite_image():
         raw_bounds = None
 
         if stac_bbox_str:
-            # If a STAC bbox is provided (i.e., for Maxar), use it directly
             lon_min, lat_min, lon_max, lat_max = [float(b) for b in stac_bbox_str.split(',')]
-            # Leaflet needs bounds in [[lat_min, lon_min], [lat_max, lon_max]] format
             leaflet_bounds = [[lat_min, lon_min], [lat_max, lon_max]]
             raw_bounds = {"lat_min": lat_min, "lat_max": lat_max, "lon_min": lon_min, "lon_max": lon_max}
-            # Still call process_geotiff_image to convert the file, but we'll ignore its returned bounds
             process_geotiff_image(tif_path=geotiff_path, save_path=png_path, satellite=satellite)
         else:
-            # For GEE images, use the original method to extract bounds from the GeoTIFF
             bounds_4326 = process_geotiff_image(tif_path=geotiff_path, save_path=png_path, satellite=satellite)
             if bounds_4326:
                 lat_min, lat_max, lon_min, lon_max = bounds_4326
@@ -327,7 +303,6 @@ def process_satellite_image():
 @app.route("/api/generate_osm_mask", methods=["POST"])
 def generate_osm_mask():
     try:
-        # Get data from the POST request body
         request_data = request.get_json()
         osm_geojson = request_data.get('osm_data')
         image_bounds_str = request_data.get('image_bounds')
@@ -335,7 +310,6 @@ def generate_osm_mask():
         if not all([osm_geojson, image_bounds_str]):
             return jsonify({"error": "Missing 'osm_data' or 'image_bounds' in request body"}), 400
 
-        # The Overpass API call is no longer needed here
         image_bounds = [float(b) for b in image_bounds_str.split(',')]
         osm_mask_image = create_osm_mask(osm_geojson, image_bounds, image_size=(512, 512))
 
@@ -350,21 +324,15 @@ def generate_osm_mask():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-
 @app.route("/api/get_predicted_roads", methods=["GET"])
 def get_predicted_roads():
-    # This outer try block will catch any unexpected errors
     try:
+        prefix = request.args.get("prefix", "pre")
+        bbox_str = request.args.get("bbox")
 
-        satellite_image_url = request.args.get("image_url")
-        prefix = request.args.get("prefix", "pred")
-        if not satellite_image_url:
-            return jsonify({"error": "Missing 'image_url' parameter."}), 400
-
-        input_filename = os.path.basename(satellite_image_url).split("?")[0]
-        input_image_path = os.path.abspath(os.path.join(backend_static_folder, input_filename))
-        if not os.path.exists(input_image_path):
-            return jsonify({"error": f"Satellite image not found on server: {input_filename}"}), 404
+        input_geotiff_path = os.path.join(backend_static_folder, f"temp_satellite_{prefix}.tif")
+        if not os.path.exists(input_geotiff_path):
+            return jsonify({"error": f"GeoTIFF not found: temp_satellite_{prefix}.tif"}), 404
 
         output_dir_name = f"sentinel_test_{prefix}"
         model_output_dir = os.path.join(SAM_ROAD_PROJECT_DIR, "save", output_dir_name)
@@ -374,11 +342,22 @@ def get_predicted_roads():
 
         command = [
             python_executable, inference_script_path,
-            "--config", SAM_ROAD_CONFIG_PATH, "--checkpoint", SAM_ROAD_CHECKPOINT_PATH,
-            "--device", torch_device, "--images", input_image_path, "--output_dir", output_dir_name,
+            "--config", SAM_ROAD_CONFIG_PATH,
+            "--checkpoint", SAM_ROAD_CHECKPOINT_PATH,
+            "--device", torch_device,
+            "--output_dir", output_dir_name,
+            "--images", input_geotiff_path
         ]
 
-        # This inner try block specifically handles the subprocess error
+        if bbox_str:
+            command.extend(["--bbox"])
+            command.extend(bbox_str.split(','))
+
+            min_lon, min_lat, max_lon, max_lat = [float(c) for c in bbox_str.split(',')]
+            leaflet_bounds = [[min_lat, min_lon], [max_lat, max_lon]]
+
+        print(f"--- Executing inference command: {' '.join(command)} ---")
+
         try:
             subprocess.run(command, capture_output=True, text=True, check=True, cwd=SAM_ROAD_PROJECT_DIR)
         except subprocess.CalledProcessError as e:
@@ -387,50 +366,69 @@ def get_predicted_roads():
 
         graph_path = os.path.join(model_output_dir, "graph", "0.p")
         mask_image_path = os.path.join(model_output_dir, "mask", "0_road.png")
-        geotiff_path = os.path.join(backend_static_folder, f"temp_satellite_{prefix}.tif")
-        if not all(os.path.exists(p) for p in [graph_path, mask_image_path, geotiff_path]):
+        transform_path = os.path.join(model_output_dir, "graph", "0_transform.json") # Path to the new transform file
+
+        if not all(os.path.exists(p) for p in [graph_path, mask_image_path]):
             return jsonify({"error": "Model output or georeference file not found."}), 500
 
         with open(graph_path, "rb") as f:
             predicted_graph_data = pickle.load(f)
 
-        predicted_roads_geojson = graph_to_geojson(predicted_graph_data, geotiff_path)
+        with rasterio.open(input_geotiff_path) as src:
+            crs = src.crs
+            transform = src.transform
+            if os.path.exists(transform_path):
+                with open(transform_path, 'r') as f_transform:
+                    transform = Affine.from_gdal(*json.load(f_transform))
+        
+        predicted_roads_geojson = graph_to_geojson(predicted_graph_data, transform, crs)
 
         unique_id = f"{prefix}_{int(time.time())}"
         mask_filename = f"predicted_mask_{unique_id}.png"
         shutil.copy(mask_image_path, os.path.join(backend_static_folder, mask_filename))
 
-        return jsonify({"geojson": predicted_roads_geojson, "maskUrl": f"/static/{mask_filename}"})
+        return jsonify({"geojson": predicted_roads_geojson,
+                        "maskUrl": f"/static/{mask_filename}",
+                        "bounds": leaflet_bounds})
 
     except Exception as e:
         logging.error(f"An unexpected error occurred in get_predicted_roads: {e}", exc_info=True)
-        if isinstance(e, subprocess.CalledProcessError):
-             return jsonify({"error": "Failed to run road prediction model.", "details": e.stderr}), 500
         return jsonify({"error": "An unexpected server error occurred.", "details": str(e)}), 500
 
+def get_prediction_geojson(prefix):
+    """Helper function to load graph, transform, and convert to GeoJSON."""
+    geotiff_path = os.path.join(backend_static_folder, f"temp_satellite_{prefix}.tif")
+    model_output_dir = os.path.join(SAM_ROAD_PROJECT_DIR, "save", f"sentinel_test_{prefix}")
+    graph_path = os.path.join(model_output_dir, "graph", "0.p")
+    transform_path = os.path.join(model_output_dir, "graph", "0_transform.json")
+
+    if not os.path.exists(graph_path):
+        raise FileNotFoundError(f"Prediction file not found: {graph_path}")
+
+    with open(graph_path, "rb") as f:
+        graph_data = pickle.load(f)
+
+    with rasterio.open(geotiff_path) as src:
+        crs = src.crs
+        transform = src.transform # Default transform
+        if os.path.exists(transform_path):
+            with open(transform_path, 'r') as f_transform:
+                transform = Affine.from_gdal(*json.load(f_transform))
+
+    return graph_to_geojson(graph_data, transform, crs)
 
 
 @app.route("/api/compare_roads", methods=["POST"])
 def compare_roads():
     try:
-        # 1. Get OSM data from the POST request body
         request_data = request.get_json()
         osm_geojson = request_data.get('osm_data')
         if not osm_geojson:
             return jsonify({"error": "Missing 'osm_data' in request body"}), 400
 
-        # 2. Load Pre- and Post-event prediction data from files
-        geotiff_path_pre = os.path.join(backend_static_folder, "temp_satellite_pre.tif")
-        graph_path_pre = os.path.join(SAM_ROAD_PROJECT_DIR, "save", "sentinel_test_pre", "graph", "0.p")
-        with open(graph_path_pre, "rb") as f:
-            graph_data_pre = pickle.load(f)
-        pre_event_geojson = graph_to_geojson(graph_data_pre, geotiff_path_pre)
+        pre_event_geojson = get_prediction_geojson('pre')
+        post_event_geojson = get_prediction_geojson('post')
 
-        geotiff_path_post = os.path.join(backend_static_folder, "temp_satellite_post.tif")
-        graph_path_post = os.path.join(SAM_ROAD_PROJECT_DIR, "save", "sentinel_test_post", "graph", "0.p")
-        with open(graph_path_post, "rb") as f:
-            graph_data_post = pickle.load(f)
-        post_event_geojson = graph_to_geojson(graph_data_post, geotiff_path_post)
     except FileNotFoundError as e:
         logging.error(f"Prediction file not found: {e}")
         return jsonify({"error": "A prediction file was not found. Please run both detections first."}), 404
@@ -438,24 +436,24 @@ def compare_roads():
         logging.error(f"Error loading prediction data: {e}")
         return jsonify({"error": "Could not load prediction data."}), 500
 
-    # 3. Perform the comparison
     try:
         post_lines = [shape(feature["geometry"]) for feature in post_event_geojson["features"]]
         osm_lines = [shape(feature["geometry"]) for feature in osm_geojson["features"]]
         if not osm_lines:
             return jsonify({"error": "No OSM roads found in the data to use as a reference."}), 404
 
-        post_union = unary_union(post_lines)
-        osm_union = unary_union(osm_lines)
-
-        post_buffer = post_union.buffer(0.0002)
-        osm_buffer = osm_union.buffer(0.0002)
+        # Use a small buffer to account for minor prediction inaccuracies
+        post_union = unary_union(post_lines).buffer(0.0001) if post_lines else None
+        osm_union = unary_union(osm_lines).buffer(0.0001)
 
         damaged_roads = []
         for feature in pre_event_geojson["features"]:
             pre_line = shape(feature["geometry"])
-            is_on_osm = pre_line.intersects(osm_buffer)
-            is_in_post = pre_line.intersects(post_buffer)
+            # A road is considered damaged if it was predicted before the event,
+            # it aligns with a known OSM road, but it was NOT predicted after the event.
+            is_on_osm = pre_line.intersects(osm_union)
+            is_in_post = post_union and pre_line.intersects(post_union)
+            
             if is_on_osm and not is_in_post:
                 damaged_roads.append(feature)
 

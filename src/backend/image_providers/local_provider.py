@@ -1,7 +1,7 @@
 # backend/image_providers/local_provider.py
 
 import logging
-from typing import Dict, Any, Tuple, List
+from typing import Tuple, List
 
 from .base_provider import ImageProvider
 

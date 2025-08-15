@@ -27,7 +27,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Global State and Constants ---
     const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
     
-    // Dynamically set the base URLs based on the environment
     const API_BASE_URL = isLocal ? 'http://localhost:4000/api' : '/eodt4crises/api';
     const STATIC_BASE_URL = isLocal ? 'http://localhost:4000' : '/eodt4crises';
 
@@ -55,11 +54,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const postSatControls = document.getElementById('postSatControls');
     const localOptionsContainer = document.getElementById('localOptionsContainer');
     
-    // References for the new separate upload inputs
     const preEventUploadInput = document.getElementById('preEventUpload');
     const postEventUploadInput = document.getElementById('postEventUpload');
 
-    // Dynamic UI Elements
     const dataSourceSelect = document.getElementById('dataSourceSelect');
     const geeOptionsContainer = document.getElementById('geeOptionsContainer');
     const planetOptionsContainer = document.getElementById('planetOptionsContainer');
@@ -81,20 +78,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Satellite Data Configuration ---
     const SATELLITE_OPTIONS_MAP = {
-        gee: [
-            { value: 'sentinel_2', text: 'Sentinel-2' },
-            { value: 'sentinel_2_nir', text: 'Sentinel-2 NIR' },
-            { value: 'sentinel_1', text: 'Sentinel-1' }
-        ],
-        maxar: [
-            { value: 'maxar_imagery', text: 'Maxar Imagery' }
-        ],
-        local: [
-            { value: 'sentinel_2', text: 'Sentinel-2' },
-            { value: 'sentinel_2_nir', text: 'Sentinel-2 NIR' },
-            { value: 'sentinel_1', text: 'Sentinel-1' },
-            { value: 'maxar_imagery', text: 'Maxar Imagery' }
-        ]
+        gee: [ { value: 'sentinel_2', text: 'Sentinel-2' }, { value: 'sentinel_2_nir', text: 'Sentinel-2 NIR' }, { value: 'sentinel_1', text: 'Sentinel-1' } ],
+        maxar: [ { value: 'maxar_imagery', text: 'Maxar Imagery' } ],
+        local: [ { value: 'sentinel_2', text: 'Sentinel-2' }, { value: 'sentinel_2_nir', text: 'Sentinel-2 NIR' }, { value: 'sentinel_1', text: 'Sentinel-1' }, { value: 'maxar_imagery', text: 'Maxar Imagery' } ]
     };
 
     // --- Helper Functions ---
@@ -113,55 +99,6 @@ document.addEventListener('DOMContentLoaded', () => {
         postMask: document.getElementById('download-post-mask'),
         postGeoJSON: document.getElementById('download-post-geojson'),
         damageGeoJSON: document.getElementById('download-damage-geojson'),
-    };
-
-    const resetWorkflow = (fullReset = false) => {
-        if (analysisState.gtMaskLayer) analysisState.gtMaskLayer.remove();
-        if (analysisState.damageLayerGroup) analysisState.damageLayerGroup.remove();
-        analysisState.gtMaskLayer = null;
-        analysisState.damageLayerGroup = null;
-
-        gtMaskControls.style.display = 'none';
-        damageAnalysisControls.style.display = 'none';
-        preSatControls.style.display = 'none';
-        postSatControls.style.display = 'none';
-        
-        ['pre', 'post'].forEach(prefix => {
-            if (analysisState[prefix].satLayer) analysisState[prefix].satLayer.remove();
-            if (analysisState[prefix].predMaskLayer) analysisState[prefix].predMaskLayer.remove();
-            if (analysisState[prefix].predGraphGroup) analysisState[prefix].predGraphGroup.remove();
-
-            analysisState[prefix] = { satLayer: null, predMaskLayer: null, predGraphGroup: null, imageUrl: null, bounds: null, rawBounds: null, satellite: null };
-            document.getElementById(`${prefix}DetectionControls`).style.display = 'none';
-        });
-
-        // Reset toggles and sliders to their default states
-        document.getElementById('toggleGtMask').checked = false;
-        document.getElementById('gtMaskOpacitySlider').value = 1.0;
-        document.getElementById('togglePreSat').checked = true;
-        document.getElementById('preOpacitySlider').value = 1.0;
-        document.getElementById('togglePrePredMask').checked = false;
-        document.getElementById('prePredMaskOpacitySlider').value = 1.0;
-        document.getElementById('togglePrePredGraph').checked = true;
-        document.getElementById('togglePostSat').checked = true;
-        document.getElementById('postOpacitySlider').value = 1.0;
-        document.getElementById('togglePostPredMask').checked = false;
-        document.getElementById('postPredMaskOpacitySlider').value = 1.0;
-        document.getElementById('togglePostPredGraph').checked = true;
-        document.getElementById('toggleDamageLayer').checked = true;
-
-        Object.values(downloadLinks).forEach(link => {
-            link.classList.add('disabled');
-            link.href = '#';
-            link.removeAttribute('download');
-        });
-
-        if (fullReset) {
-            if(drawnItems) drawnItems.clearLayers();
-            if(osmRoadsLayer) osmRoadsLayer.clearLayers();
-            drawnRectangle = null;
-        }
-        checkWorkflowState(); // Always check state after a reset
     };
     
     function resetPreLayers() {
@@ -243,7 +180,7 @@ document.addEventListener('DOMContentLoaded', () => {
             alert('Could not load OSM road data.');
         } finally {
             hideLoader();
-            checkWorkflowState(); // Check state after roads are loaded/failed
+            checkWorkflowState();
         }
     };
     updateRoadsBtn.addEventListener('click', updateRoads);
@@ -256,16 +193,13 @@ document.addEventListener('DOMContentLoaded', () => {
         else if (selectedProvider === 'maxar') maxarOptionsContainer.style.display = 'block';
         else if (selectedProvider === 'local') localOptionsContainer.style.display = 'block';
         updateSatelliteOptions(selectedProvider);
-        checkWorkflowState(); // Re-check state when provider changes
+        checkWorkflowState();
     });
 
     satelliteSelect.addEventListener('change', () => {
         const selectedSatellite = satelliteSelect.value;
         const selectedProvider = dataSourceSelect.value;
-
         document.querySelectorAll('.satellite-options').forEach(el => el.style.display = 'none');
-
-        // Only show the specific options (cloud cover, etc.) if the provider is NOT local
         if (selectedProvider !== 'local') {
             if (selectedSatellite === 'sentinel_1') sentinel1Options.style.display = 'block';
             else if (selectedSatellite === 'sentinel_2') sentinel2Options.style.display = 'block';
@@ -286,11 +220,9 @@ document.addEventListener('DOMContentLoaded', () => {
         satelliteSelect.dispatchEvent(new Event('change'));
     }
     
-    // --- Event Listeners for Direct Uploads ---
     preEventUploadInput.addEventListener('change', function() { handleLocalUpload('pre', this); });
     postEventUploadInput.addEventListener('change', function() { handleLocalUpload('post', this); });
 
-    // --- Main Workflow Functions ---
     async function handleLocalUpload(prefix, fileInput) {
         if (fileInput.files.length === 0) return;
         const selectedSatellite = satelliteSelect.value;
@@ -310,7 +242,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!uploadRes.ok) throw new Error((await uploadRes.json()).error);
             const uploadData = await uploadRes.json();
 
-            // Update the download link for the uploaded GeoTIFF
             if (uploadData.rawTiffUrl) {
                 const tiffLinkElement = (prefix === 'pre') ? downloadLinks.preGeoTiff : downloadLinks.postGeoTiff;
                 tiffLinkElement.href = STATIC_BASE_URL + uploadData.rawTiffUrl;
@@ -328,7 +259,6 @@ document.addEventListener('DOMContentLoaded', () => {
             analysisState[prefix].satLayer = L.imageOverlay(STATIC_BASE_URL + processData.imageUrl, processData.bounds, { opacity: 1.0 }).addTo(map);
             document.getElementById(`${prefix}ImageDateDisplay`).innerHTML = `<b>Image Date:</b> ${uploadData.imageDate}`;
             
-            // Update the download link for the processed PNG
             const pngLinkElement = (prefix === 'pre') ? downloadLinks.preSat : downloadLinks.postSat;
             pngLinkElement.href = STATIC_BASE_URL + processData.imageUrl;
             pngLinkElement.download = `${prefix}_event_satellite_processed.png`;
@@ -383,9 +313,9 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (error) { console.error('Error generating images:', error); alert(`Error: ${error.message}`);
         } finally { hideLoader(); }
     });
-    
+
     function buildApiRequestBody(prefix) {
-        if (!drawnRectangle) return null; // Should not happen if button is disabled, but good practice
+        if (!drawnRectangle) return null;
         const bbox = drawnRectangle.getBounds().toBBoxString();
         const source_provider = dataSourceSelect.value;
         const satellite = satelliteSelect.value;
@@ -424,7 +354,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!downloadRes.ok) throw new Error((await downloadRes.json()).error);
             const downloadData = await downloadRes.json();
 
-            // Update the download link for the raw GeoTIFF
             if (downloadData.rawTiffUrl) {
                 const tiffLinkElement = (prefix === 'pre') ? downloadLinks.preGeoTiff : downloadLinks.postGeoTiff;
                 tiffLinkElement.href = STATIC_BASE_URL + downloadData.rawTiffUrl;
@@ -445,7 +374,6 @@ document.addEventListener('DOMContentLoaded', () => {
             analysisState[prefix].satLayer = L.imageOverlay(STATIC_BASE_URL + processData.imageUrl, processData.bounds, { opacity: 1.0 }).addTo(map);
             document.getElementById(`${prefix}ImageDateDisplay`).innerHTML = `<b>Image Date:</b> ${downloadData.imageDate}`;
             
-            // Update the download link for the processed PNG
             const pngLinkElement = (prefix === 'pre') ? downloadLinks.preSat : downloadLinks.postSat;
             pngLinkElement.href = STATIC_BASE_URL + processData.imageUrl;
             pngLinkElement.download = `${prefix}_event_satellite_processed.png`;
@@ -462,19 +390,11 @@ document.addEventListener('DOMContentLoaded', () => {
     function checkWorkflowState() {
         const provider = dataSourceSelect.value;
         const isRemoteProvider = provider !== 'local';
-
-        // Enable remote "Retrieve" buttons only for remote providers when a box is drawn
         generatePreImagesBtn.disabled = !(isRemoteProvider && drawnRectangle);
         generatePostImagesBtn.disabled = !(isRemoteProvider && drawnRectangle);
-
-        // Enable "Run Detection" buttons only if an image is loaded AND a rectangle is drawn
         document.getElementById('runPreDetectionBtn').disabled = !(analysisState.pre.satLayer && drawnRectangle);
         document.getElementById('runPostDetectionBtn').disabled = !(analysisState.post.satLayer && drawnRectangle);
-
-        // Enable "Generate GT Mask" if the pre-event image is loaded, a box is drawn, and roads are present
         generateGTMaskBtn.disabled = !(analysisState.pre.satLayer && drawnRectangle && osmRoadsLayer.getLayers().length > 0);
-
-        // Enable "Compare Roads" only if both detection graphs exist
         compareRoadsBtn.disabled = !(analysisState.pre.predGraphGroup && analysisState.post.predGraphGroup);
     }
 
@@ -522,7 +442,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         showLoader(`Running ${prefix}-event detection...`);
         try {
-            const res = await fetch(`${API_BASE_URL}/get_predicted_roads?image_url=${analysisState[prefix].imageUrl}&prefix=${prefix}`);
+            const bbox = drawnRectangle.getBounds().toBBoxString();
+            // --- SIMPLIFIED API CALL ---
+            // The redundant image_url parameter has been removed. The backend uses the prefix to
+            // find the correct GeoTIFF and the bbox to define the processing area.
+            const res = await fetch(`${API_BASE_URL}/get_predicted_roads?prefix=${prefix}&bbox=${bbox}`);
 
             if (!res.ok) {
                 const errorData = await res.json();
@@ -541,7 +465,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const casingLayer = L.geoJSON(data.geojson, { style: casingStyle });
             const mainLayer = L.geoJSON(data.geojson, { style: mainStyle });
             analysisState[prefix].predGraphGroup = L.featureGroup([casingLayer, mainLayer]).addTo(map);
-            analysisState[prefix].predMaskLayer = L.imageOverlay(STATIC_BASE_URL + data.maskUrl, analysisState[prefix].bounds, { opacity: 1.0 });
+            const maskBounds = data.bounds || analysisState[prefix].bounds;
+            analysisState[prefix].predMaskLayer = L.imageOverlay(STATIC_BASE_URL + data.maskUrl, maskBounds, { opacity: 1.0 });
             document.getElementById(`${prefix}DetectionControls`).style.display = 'block';
             document.getElementById(`toggle${prefix.charAt(0).toUpperCase() + prefix.slice(1)}PredMask`).checked = false;
             checkWorkflowState();
@@ -603,7 +528,6 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('runPreDetectionBtn').addEventListener('click', () => runDetection('pre'));
     document.getElementById('runPostDetectionBtn').addEventListener('click', () => runDetection('post'));
 
-    // --- General UI Listeners ---
     document.getElementById('baseMapToggle').addEventListener('change', (e) => map.toggleLayer(baseMapLayer, e.target.checked));
     document.getElementById('roadToggle').addEventListener('change', (e) => map.toggleLayer(osmRoadsLayer, e.target.checked));
     document.getElementById('toggleGtMask').addEventListener('change', (e) => map.toggleLayer(analysisState.gtMaskLayer, e.target.checked));
@@ -633,6 +557,5 @@ document.addEventListener('DOMContentLoaded', () => {
 
     L.Map.prototype.toggleLayer = function(layer, show) { if (layer) { if (show) this.addLayer(layer); else this.removeLayer(layer); } };
 
-    // --- Final Initialization ---
     dataSourceSelect.dispatchEvent(new Event('change'));
 });

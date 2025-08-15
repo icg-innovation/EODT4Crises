@@ -1,7 +1,6 @@
 # backend/image_providers/maxar_provider.py
 
 import requests
-import os
 from datetime import datetime, timezone
 import logging
 from typing import Dict, Any, Tuple, List

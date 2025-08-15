@@ -11,21 +11,30 @@ def process_geotiff_image(tif_path, save_path, satellite, size=(512, 512), brigh
         if satellite == "sentinel_2":
             img = src.read([1, 2, 3])
             img = np.transpose(img, (1, 2, 0))
-            divisor = 10000.0 / brightness_factor
+
+            divisor = 10000.0
             img = np.clip(img / divisor, 0, 1) * 255
             img = img.astype(np.uint8)
+
         elif satellite == "sentinel_2_nir":
             img = src.read([1, 2, 3])
             img = np.transpose(img, (1, 2, 0))
-            divisor = 10000.0 / brightness_factor
-            img = np.clip(img / divisor, 0, 1) * 255
+
+            if np.issubdtype(img.dtype, np.floating):
+                p2, p98 = np.percentile(img, (2, 98))
+                img = np.clip((img - p2) / (p98 - p2), 0, 1) * 255
+            else:
+                divisor = 10000.0 / brightness_factor
+                img = np.clip(img / divisor, 0, 1) * 255
             img = img.astype(np.uint8)
+
         elif satellite == "sentinel_1":
             img = src.read(1)
             p2, p98 = np.percentile(img, (2, 98))
             img = np.clip((img - p2) * (255.0 / (p98 - p2)), 0, 255)
             img = img.astype(np.uint8)
             img = np.stack([img]*3, axis=-1)
+
         elif satellite == "maxar_imagery":
             # Maxar image is a browse preview (likely 8-bit RGB).
             # assume first three bands are RGB.
