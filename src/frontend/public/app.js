@@ -33,9 +33,10 @@ document.addEventListener('DOMContentLoaded', () => {
     let drawnRectangle = null;
     let analysisState = {
         gtMaskLayer: null,
-        damageLayerGroup: null, 
+        damageLayerGroup: null,
         pre: { satLayer: null, predMaskLayer: null, predGraphGroup: null, imageUrl: null, bounds: null, rawBounds: null, satellite: null },
-        post: { satLayer: null, predMaskLayer: null, predGraphGroup: null, imageUrl: null, bounds: null, rawBounds: null, satellite: null }
+        post: { satLayer: null, predMaskLayer: null, predGraphGroup: null, imageUrl: null, bounds: null, rawBounds: null, satellite: null },
+        gpkg: { layers: [] }
     };
 
     // --- DOM Element References ---
@@ -54,8 +55,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const postSatControls = document.getElementById('postSatControls');
     const localOptionsContainer = document.getElementById('localOptionsContainer');
     
+    const geoPackageUploadInput = document.getElementById('geoPackageUpload');
     const preEventUploadInput = document.getElementById('preEventUpload');
     const postEventUploadInput = document.getElementById('postEventUpload');
+    const disableNormalizationCheckbox = document.getElementById('disableNormalizationCheckbox');
 
     const dataSourceSelect = document.getElementById('dataSourceSelect');
     const geeOptionsContainer = document.getElementById('geeOptionsContainer');
@@ -75,12 +78,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const cloudCoverValueNIR = document.getElementById('cloudCoverValueNIR');
     const maxarCloudCoverSlider = document.getElementById('maxarCloudCoverSlider');
     const maxarCloudCoverValue = document.getElementById('maxarCloudCoverValue');
+    const greyscaleToggle = document.getElementById('greyscaleToggle');
 
     // --- Satellite Data Configuration ---
     const SATELLITE_OPTIONS_MAP = {
         gee: [ { value: 'sentinel_2', text: 'Sentinel-2' }, { value: 'sentinel_2_nir', text: 'Sentinel-2 NIR' }, { value: 'sentinel_1', text: 'Sentinel-1' } ],
         maxar: [ { value: 'maxar_imagery', text: 'Maxar Imagery' } ],
-        local: [ { value: 'sentinel_2', text: 'Sentinel-2' }, { value: 'sentinel_2_nir', text: 'Sentinel-2 NIR' }, { value: 'sentinel_1', text: 'Sentinel-1' }, { value: 'maxar_imagery', text: 'Maxar Imagery' } ]
+        local: [ { value: 'sentinel_2', text: 'Sentinel-2' }, { value: 'sentinel_2_nir', text: 'Sentinel-2 NIR' },
+                 { value: 'sentinel_1', text: 'Sentinel-1' }, { value: 'maxar_imagery', text: 'Maxar Imagery' },
+                 { value: 'capella', text: 'Capella' }]
     };
 
     // --- Helper Functions ---
@@ -185,6 +191,122 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     updateRoadsBtn.addEventListener('click', updateRoads);
 
+    // --- GeoPackage Upload Logic ---
+    // Helper to create a UI row for a gpkg layer with controls (visibility, opacity, color, delete)
+    function createGpkgLayerRow(layerObj) {
+        const container = document.getElementById('gpkgLayersContainer');
+        const placeholder = document.getElementById('gpkgLayersPlaceholder');
+        if (placeholder) placeholder.style.display = 'none';
+
+        const row = document.createElement('div');
+        row.className = 'gpkg-layer-row';
+
+        // Title row (top)
+        const left = document.createElement('div');
+        left.className = 'gpkg-layer-left';
+        const name = document.createElement('div');
+        name.textContent = layerObj.name;
+        left.appendChild(name);
+
+        // Controls row (bottom): eyeball, colour, trash
+        const right = document.createElement('div');
+        right.className = 'gpkg-layer-right';
+
+        const eyeBtn = document.createElement('button');
+        eyeBtn.className = 'gpkg-eye-btn';
+        eyeBtn.title = 'Toggle visibility';
+        eyeBtn.innerHTML = '👁️';
+        eyeBtn.addEventListener('click', () => {
+            const currentlyVisible = map.hasLayer(layerObj.layer);
+            if (currentlyVisible) {
+                map.removeLayer(layerObj.layer);
+                eyeBtn.classList.add('hidden');
+            } else {
+                map.addLayer(layerObj.layer);
+                eyeBtn.classList.remove('hidden');
+            }
+        });
+
+        const colorInput = document.createElement('input');
+        colorInput.type = 'color';
+        colorInput.value = layerObj.color || '#ffc107';
+        colorInput.title = 'Layer color';
+        colorInput.addEventListener('input', (e) => {
+            try { layerObj.layer.setStyle({ color: e.target.value }); } catch (err) { }
+        });
+
+        const deleteBtn = document.createElement('button');
+        deleteBtn.title = 'Remove layer';
+        deleteBtn.className = 'gpkg-delete-btn';
+        deleteBtn.innerHTML = '🗑️';
+        deleteBtn.addEventListener('click', () => {
+            // remove from map and from state
+            layerObj.layer.remove();
+            row.remove();
+            analysisState.gpkg.layers = analysisState.gpkg.layers.filter(l => l !== layerObj);
+            if (analysisState.gpkg.layers.length === 0) {
+                const ph = document.getElementById('gpkgLayersPlaceholder'); if (ph) ph.style.display = 'block';
+                document.getElementById('gpkgLayerControls').style.display = 'none';
+            }
+        });
+
+        right.appendChild(eyeBtn);
+        right.appendChild(colorInput);
+        right.appendChild(deleteBtn);
+
+        row.appendChild(left);
+        row.appendChild(right);
+
+        container.appendChild(row);
+    }
+
+    geoPackageUploadInput.addEventListener('change', async function() {
+        if (this.files.length === 0) return;
+        const file = this.files[0];
+
+        showLoader(`Uploading ${file.name}...`);
+        const formData = new FormData();
+        formData.append('file', file);
+
+        try {
+            const response = await fetch(`${API_BASE_URL}/upload_geopackage`, {
+                method: 'POST',
+                body: formData
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.details || errorData.error || 'Failed to process GeoPackage.');
+            }
+
+            const geojsonData = await response.json();
+
+            // Create a Leaflet layer for the uploaded geopackage
+            const gpkgLayer = L.geoJSON(geojsonData, {
+                style: function(feature) {
+                    return { color: '#ffc107', weight: 2, opacity: 0.8, fillOpacity: 0.2 };
+                }
+            }).addTo(map);
+
+            const layerObj = { name: file.name, layer: gpkgLayer, opacity: 0.8, color: '#ffc107' };
+            analysisState.gpkg.layers.push(layerObj);
+
+            // Show controls container
+            document.getElementById('gpkgLayerControls').style.display = 'block';
+            createGpkgLayerRow(layerObj);
+
+            // fit to the newly added layer bounds if available
+            try { map.fitBounds(gpkgLayer.getBounds()); } catch (e) { }
+
+        } catch (error) {
+            console.error('GeoPackage Upload Error:', error);
+            alert(`Could not load GeoPackage: ${error.message}`);
+        } finally {
+            hideLoader();
+            this.value = ''; // Reset file input
+        }
+    });
+
     // --- Dynamic UI Logic ---
     dataSourceSelect.addEventListener('change', () => {
         const selectedProvider = dataSourceSelect.value;
@@ -205,6 +327,7 @@ document.addEventListener('DOMContentLoaded', () => {
             else if (selectedSatellite === 'sentinel_2') sentinel2Options.style.display = 'block';
             else if (selectedSatellite === 'sentinel_2_nir') sentinel2NIROptions.style.display = 'block';
             else if (selectedSatellite === 'maxar_imagery') maxarImageryOptions.style.display = 'block';
+            else if (selectedSatellite === 'capella') capellaOptions.style.display = 'block';
         }
     });
 
@@ -249,7 +372,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 tiffLinkElement.classList.remove('disabled');
             }
             
-            const processUrl = `${API_BASE_URL}/process_satellite_image?satellite=${selectedSatellite}&prefix=${prefix}`;
+            let processUrl = `${API_BASE_URL}/process_satellite_image?satellite=${selectedSatellite}&prefix=${prefix}`;
+            if (disableNormalizationCheckbox && disableNormalizationCheckbox.checked) {
+                processUrl += `&disable_normalization=true`;
+            }
             const processRes = await fetch(processUrl);
             if (!processRes.ok) throw new Error((await processRes.json()).error);
             const processData = await processRes.json();
@@ -443,10 +569,61 @@ document.addEventListener('DOMContentLoaded', () => {
         showLoader(`Running ${prefix}-event detection...`);
         try {
             const bbox = drawnRectangle.getBounds().toBBoxString();
-            // --- SIMPLIFIED API CALL ---
-            // The redundant image_url parameter has been removed. The backend uses the prefix to
-            // find the correct GeoTIFF and the bbox to define the processing area.
-            const res = await fetch(`${API_BASE_URL}/get_predicted_roads?prefix=${prefix}&bbox=${bbox}`);
+            // First: if this case had saved prediction assets, prefer them and skip ML
+            const caseMaskUrl = analysisState[prefix].predictedMaskStaticUrl || null;
+            const caseGraphUrl = analysisState[prefix].predictedGraphStaticUrl || null;
+            if (caseMaskUrl || caseGraphUrl) {
+                // Load saved mask overlay if present
+                if (caseMaskUrl) {
+                    if (analysisState[prefix].predMaskLayer) analysisState[prefix].predMaskLayer.remove();
+                    const maskBounds = analysisState[prefix].bounds || [[drawnRectangle.getSouth(), drawnRectangle.getWest()], [drawnRectangle.getNorth(), drawnRectangle.getEast()]];
+                    analysisState[prefix].predMaskLayer = L.imageOverlay(STATIC_BASE_URL + caseMaskUrl, maskBounds, { opacity: 1.0 }).addTo(map);
+                    const maskLink = (prefix === 'pre') ? downloadLinks.preMask : downloadLinks.postMask;
+                    maskLink.href = STATIC_BASE_URL + caseMaskUrl;
+                    maskLink.download = `${prefix}_event_prediction_mask.png`;
+                    maskLink.classList.remove('disabled');
+                }
+
+                // Load saved graph if available (prefer a .geojson next to .p, else skip)
+                if (caseGraphUrl) {
+                    // If graph URL ends with .p try to fetch a same-named .geojson
+                    let geojsonCandidate = caseGraphUrl;
+                    if (geojsonCandidate.endsWith('.p')) geojsonCandidate = geojsonCandidate.replace(/\.p$/, '.geojson');
+                    try {
+                        const gjRes = await fetch(STATIC_BASE_URL + geojsonCandidate);
+                        if (gjRes.ok) {
+                            const gj = await gjRes.json();
+                            if (analysisState[prefix].predGraphGroup) analysisState[prefix].predGraphGroup.remove();
+                            const casingStyle = { color: roadColors.casing, weight: 7, opacity: 0.8 };
+                            const mainStyle = { color: (prefix === 'pre' ? roadColors.preEvent : roadColors.postEvent), weight: 3, opacity: 1 };
+                            const casingLayer = L.geoJSON(gj, { style: casingStyle });
+                            const mainLayer = L.geoJSON(gj, { style: mainStyle });
+                            analysisState[prefix].predGraphGroup = L.featureGroup([casingLayer, mainLayer]).addTo(map);
+                            const geojsonLink = (prefix === 'pre') ? downloadLinks.preGeoJSON : downloadLinks.postGeoJSON;
+                            const blob = new Blob([JSON.stringify(gj, null, 2)], { type: 'application/json' });
+                            geojsonLink.href = URL.createObjectURL(blob);
+                            geojsonLink.download = `${prefix}_event_predicted_roads.geojson`;
+                            geojsonLink.classList.remove('disabled');
+                        } else {
+                            console.warn('No geojson found alongside saved graph; skipping graph display.');
+                        }
+                    } catch (err) {
+                        console.warn('Error fetching saved graph geojson:', err);
+                    }
+                }
+
+                document.getElementById(`${prefix}DetectionControls`).style.display = 'block';
+                document.getElementById(`toggle${prefix.charAt(0).toUpperCase() + prefix.slice(1)}PredMask`).checked = false;
+                checkWorkflowState();
+                hideLoader();
+                return; // skip backend inference
+            }
+
+            // No saved outputs: fall back to backend inference request
+            const params = new URLSearchParams({ prefix: prefix, bbox: bbox });
+            const staticTiff = analysisState[prefix].rawTiffStaticPath;
+            if (staticTiff) params.set('image', staticTiff);
+            const res = await fetch(`${API_BASE_URL}/get_predicted_roads?${params.toString()}`);
 
             if (!res.ok) {
                 const errorData = await res.json();
@@ -530,10 +707,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('baseMapToggle').addEventListener('change', (e) => map.toggleLayer(baseMapLayer, e.target.checked));
     document.getElementById('roadToggle').addEventListener('change', (e) => map.toggleLayer(osmRoadsLayer, e.target.checked));
-    document.getElementById('toggleGtMask').addEventListener('change', (e) => map.toggleLayer(analysisState.gtMaskLayer, e.target.checked));
+    greyscaleToggle.addEventListener('change', (e) => map.getContainer().classList.toggle('greyscale-enabled', e.target.checked));
     document.getElementById('gtMaskOpacitySlider').addEventListener('input', (e) => { if (analysisState.gtMaskLayer) analysisState.gtMaskLayer.setOpacity(e.target.value); });
     document.getElementById('toggleDamageLayer').addEventListener('change', (e) => map.toggleLayer(analysisState.damageLayerGroup, e.target.checked));
-    
+
+    // Per-layer GeoPackage controls are created dynamically; no global gpkg controls to wire here.
+
     ['pre', 'post'].forEach(prefix => {
         document.getElementById(`toggle${prefix.charAt(0).toUpperCase() + prefix.slice(1)}Sat`).addEventListener('change', (e) => map.toggleLayer(analysisState[prefix].satLayer, e.target.checked));
         document.getElementById(`${prefix}OpacitySlider`).addEventListener('input', (e) => { if (analysisState[prefix].satLayer) analysisState[prefix].satLayer.setOpacity(e.target.value); });
@@ -557,5 +736,106 @@ document.addEventListener('DOMContentLoaded', () => {
 
     L.Map.prototype.toggleLayer = function(layer, show) { if (layer) { if (show) this.addLayer(layer); else this.removeLayer(layer); } };
 
+    // Load case studies metadata (static JSON) and then initialize provider UI
+    loadCaseStudiesJson().catch(() => {});
     dataSourceSelect.dispatchEvent(new Event('change'));
+
+    // --- Case Studies (loaded from static JSON if available) ---
+    let CASE_STUDIES = null;
+
+    async function loadCaseStudiesJson() {
+        try {
+            const res = await fetch('/static/case_studies/case_studies.json');
+            if (!res.ok) throw new Error('Failed to fetch case_studies.json');
+            const json = await res.json();
+            CASE_STUDIES = json.cases || [];
+        } catch (err) {
+            console.warn('Could not load case_studies.json, falling back to embedded list.', err);
+            // fallback to a minimal built-in list to ensure UI still works
+            CASE_STUDIES = [
+                {
+                    id: 'baltimore_bridge', title: 'Baltimore Bridge Collapse', bbox: '-76.535,39.211,-76.522,39.223', mid_date: '2024-03-26', pre_start: '2024-02-01', post_end: '2024-05-01', satellite: 'sentinel_2',
+                    assets: { pre_png: '/static/satellite_image_pre_1758716786.png', post_png: '/static/satellite_image_post_1758716830.png', predicted_mask_pre: '/static/predicted_mask_pre_1758719359.png', saved_graph_prefix: 'pre' }
+                }
+            ];
+        }
+        renderCaseStudies();
+    }
+
+    function renderCaseStudies() {
+        const list = document.getElementById('caseStudyList');
+        list.innerHTML = '';
+        (CASE_STUDIES || []).forEach(study => {
+            const li = document.createElement('li');
+            li.style.marginBottom = '6px';
+            const a = document.createElement('a');
+            a.href = '#';
+            a.textContent = study.title || study.id;
+            a.style.display = 'block';
+            a.style.padding = '6px';
+            a.style.borderRadius = '4px';
+            a.style.background = '#f8f9fa';
+            a.addEventListener('click', (e) => { e.preventDefault(); selectCaseStudy(study); });
+            li.appendChild(a);
+            list.appendChild(li);
+        });
+    }
+
+    async function selectCaseStudy(study) {
+        // set dates and satellite
+        startDateInput.value = study.pre_start;
+        midDateInput.value = study.mid_date;
+        endDateInput.value = study.post_end;
+        satelliteSelect.value = study.satellite;
+        satelliteSelect.dispatchEvent(new Event('change'));
+
+        // draw rectangle on map
+        try {
+            const coords = study.bbox.split(',').map(Number);
+            const sw = L.latLng(coords[1], coords[0]);
+            const ne = L.latLng(coords[3], coords[2]);
+            if (drawnRectangle) { drawnItems.clearLayers(); drawnRectangle = null; }
+            drawnRectangle = L.rectangle([sw, ne], { color: '#007bff' });
+            drawnItems.addLayer(drawnRectangle);
+            map.fitBounds(drawnRectangle.getBounds());
+            updateRoads();
+            checkWorkflowState();
+        } catch (err) { console.error('Error drawing rectangle for case study', err); }
+
+        // For case studies: prefer remote provider flow (no local saved images/masks).
+        // Set the data source to GEE by default (cases typically use Sentinel-2)
+        try {
+            dataSourceSelect.value = study.provider || 'gee';
+        } catch (e) { dataSourceSelect.value = 'gee'; }
+        dataSourceSelect.dispatchEvent(new Event('change'));
+
+        try {
+            satelliteSelect.value = study.satellite || 'sentinel_2';
+        } catch (e) { satelliteSelect.value = 'sentinel_2'; }
+        satelliteSelect.dispatchEvent(new Event('change'));
+
+        // Clear any per-case local asset references so the UI uses the normal remote image flow
+        delete analysisState.pre.casePrePng;
+        delete analysisState.pre.rawTiffStaticPath;
+        delete analysisState.pre.predictedMaskStaticUrl;
+        delete analysisState.pre.predictedGraphStaticUrl;
+        delete analysisState.post.casePostPng;
+        delete analysisState.post.rawTiffStaticPath;
+        delete analysisState.post.predictedMaskStaticUrl;
+        delete analysisState.post.predictedGraphStaticUrl;
+
+        // Ensure the generate buttons' default event listeners handle the fetch (they are defined elsewhere)
+        checkWorkflowState();
+        
+        
+
+        // Try to fetch OSM roads for the case area (using midDate)
+        try { await updateRoads(); } catch(e) { console.warn('OSM fetch failed in case study selection', e); }
+
+        // Do not auto-load predicted roads/masks here. The user will click "Run Pre-Event Detection" or
+        // "Run Post-Event Detection" to load model outputs; that flow remains unchanged and uses the
+        // existing `runDetection(prefix)` function which calls the backend.
+    }
+
+    renderCaseStudies();
 });

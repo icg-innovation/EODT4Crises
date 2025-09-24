@@ -1,0 +1,22 @@
+{
+  "cases": [
+    {
+        "id": "baltimore_bridge",
+        "title": "Baltimore Bridge Collapse",
+        "bbox": "-76.505,39.233,-76.539,39.209",
+        "mid_date": "2024-03-26",
+        "pre_start": "2024-02-01",
+        "post_end": "2024-05-01",
+        "satellite": "sentinel_2"
+    },
+    {
+        "id": "pikeville_ky",
+        "title": "Pikeville KY Floods",
+        "bbox": "-82.546,37.512,-82.523,37.493",
+        "mid_date": "2024-04-15",
+        "pre_start": "2024-03-01",
+        "post_end": "2024-05-01",
+        "satellite": "sentinel_2"
+    }
+  ]
+}

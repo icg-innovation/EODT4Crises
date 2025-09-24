@@ -5,16 +5,29 @@ from PIL import Image
 import logging
 from pyproj import Transformer
 
-def process_geotiff_image(tif_path, save_path, satellite, size=(512, 512), brightness_factor=1.0):
+def process_geotiff_image(tif_path, save_path, satellite, size=(512, 512), brightness_factor=1.0, normalize=True):
     with rasterio.open(tif_path) as src:
 
         if satellite == "sentinel_2":
             img = src.read([1, 2, 3])
             img = np.transpose(img, (1, 2, 0))
 
-            divisor = 10000.0
-            img = np.clip(img / divisor, 0, 1) * 255
-            img = img.astype(np.uint8)
+            if normalize:
+                divisor = 10000.0
+                img = np.clip(img / divisor, 0, 1) * 255
+                img = img.astype(np.uint8)
+            else:
+                # keep raw values but ensure they fit in 8-bit for saving
+                # if values are larger than 255, scale down linearly preserving range
+                img_min = img.min()
+                img_max = img.max()
+                if img_max == img_min:
+                    img8 = np.clip(img, 0, 255).astype(np.uint8)
+                else:
+                    # scale band-wise to 0-255
+                    img_scaled = (img - img_min) / (img_max - img_min) * 255.0
+                    img8 = np.clip(img_scaled, 0, 255).astype(np.uint8)
+                img = img8
 
         elif satellite == "sentinel_2_nir":
             img = src.read([1, 2, 3])
@@ -34,6 +47,35 @@ def process_geotiff_image(tif_path, save_path, satellite, size=(512, 512), brigh
             img = np.clip((img - p2) * (255.0 / (p98 - p2)), 0, 255)
             img = img.astype(np.uint8)
             img = np.stack([img]*3, axis=-1)
+
+        elif satellite == "capella":
+            # Capella radar is single-band SAR (float or int). Read first band.
+            img = src.read(1)
+
+            # If image is all zeros, keep behavior consistent with other branches
+            if np.all(img == 0):
+                img = np.zeros((src.height, src.width), dtype=np.uint8)
+                img = np.stack([img]*3, axis=-1)
+            else:
+                # Use percentile stretch for floats or noisy data to reduce speckle impact
+                try:
+                    p2, p98 = np.percentile(img, (2, 98))
+                    if p98 > p2:
+                        img_stretched = (img - p2) * (255.0 / (p98 - p2))
+                    else:
+                        img_stretched = img - p2
+                except Exception:
+                    # Fallback to simple min-max scaling
+                    img_min = img.min()
+                    img_max = img.max()
+                    if img_max > img_min:
+                        img_stretched = (img - img_min) / (img_max - img_min) * 255.0
+                    else:
+                        img_stretched = np.clip(img, 0, 255)
+
+                img8 = np.clip(img_stretched, 0, 255).astype(np.uint8)
+                # Make 3-channel RGB by stacking the single band
+                img = np.stack([img8]*3, axis=-1)
 
         elif satellite == "maxar_imagery":
             # Maxar image is a browse preview (likely 8-bit RGB).

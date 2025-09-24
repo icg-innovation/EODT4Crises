@@ -299,6 +299,80 @@ input:checked + .slider:before {
     background-color: var(--bg-color);
 }
 
+/* GeoPackage layer row layout */
+.gpkg-layer-row {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 8px;
+    border-radius: 6px;
+    background: #fff;
+    border: 1px solid rgba(0,0,0,0.14); /* darker outline */
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+.gpkg-layer-left {
+    display: block;
+    width: 100%;
+}
+
+.gpkg-layer-right {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 8px;
+}
+
+.gpkg-layer-right input[type="color"] {
+    width: 32px;
+    height: 24px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+}
+
+.gpkg-layer-right button {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    font-size: 16px;
+}
+
+/* Truncated title */
+.gpkg-layer-left div {
+    display: block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.95em;
+    font-weight: 600;
+}
+
+/* eyeball button */
+.gpkg-eye-btn {
+    width: 28px;
+    height: 28px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.gpkg-eye-btn.hidden {
+    opacity: 0.5;
+}
+
+.gpkg-delete-btn {
+    color: #c82333;
+}
+
 .event-controls h4 {
     margin-top: 0;
 }
@@ -375,12 +449,41 @@ input:checked + .slider:before {
 
 /* Download Panel Styling */
 /* Replace with this... */
-#download-panel {
+/* Make the top-right panels match the left controls look */
+#top-right-panels {
     position: absolute;
     top: 10px;
     right: 10px;
     z-index: 1001;
-    width: 220px;
+    width: 240px; /* container width */
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    background-color: var(--bg-color);
+    padding: 10px;
+    border-radius: var(--border-radius);
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+}
+
+/* remove double backgrounds in child panels so they appear as sections */
+#top-right-panels > div {
+    background: transparent;
+    box-shadow: none;
+    border: none;
+    padding: 0;
+}
+
+#download-panel {
+    width: 100%;
+}
+
+/* Case Studies panel: positioned below the Download panel */
+#case-studies {
+    width: 100%;
+}
+
+#case-studies .collapsible-content {
+    display: block; /* keep the case list visible by default */
 }
 
 #download-list {
@@ -424,4 +527,23 @@ input:checked + .slider:before {
     display: flex;
     justify-content: space-between;
     gap: 5px;
+}
+
+/* Greyscale style for leaflet map */
+/* This rule will only be active when the map div has the 'greyscale-enabled' class */
+#map.greyscale-enabled .leaflet-tile-container {
+    filter: grayscale(100%);
+}
+
+#greyscaleToggleContainer {
+    position: absolute;
+    bottom: 30px;
+    right: 160px;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--bg-color);
+    padding: 5px 10px;
+    border-radius: var(--border-radius);
 }
