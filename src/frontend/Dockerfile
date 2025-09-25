@@ -6,3 +6,6 @@ RUN rm -rf /usr/share/nginx/html/*
 
 # Copy the static content from the 'public' directory to the Nginx web root directory
 COPY ./public/ /usr/share/nginx/html/
+
+# Add a custom nginx.conf to disable caching
+COPY nginx.conf /etc/nginx/conf.d/default.conf
