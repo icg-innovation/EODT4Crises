@@ -72,5 +72,6 @@ jobs:
           context: ./src/frontend # The build context is your frontend directory
           file: ./src/frontend/Dockerfile # Specifies the path to the new Dockerfile
           push: true
+          no-cache: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
