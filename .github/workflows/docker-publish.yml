@@ -1,17 +1,13 @@
 # This workflow builds and pushes both the backend and frontend Docker images
-# to the GitHub Container Registry (GHCR)
+# to the GitHub Container Registry (GHCR) with a unique tag based on the commit SHA.
 
 name: Docker Build and Push to GHCR
 
-# Controls when the workflow will run
 on:
-  # Triggers the workflow on push events but only for the "main" branch
   push:
     branches: [ "main" ]
 
-# A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
-  # This job builds and pushes the backend image
   build-and-push-backend:
     runs-on: ubuntu-latest
     permissions:
@@ -33,6 +29,9 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ghcr.io/${{ github.repository_owner }}/eodt-backend
+          tags: |
+            # This creates a tag from the short commit SHA, e.g., sha-a1b2c3d
+            type=sha,prefix=sha-,format=short
 
       - name: Build and push backend image
         uses: docker/build-push-action@v5
@@ -43,7 +42,6 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
 
-  # This job builds and pushes the frontend image
   build-and-push-frontend:
     runs-on: ubuntu-latest
     permissions:
@@ -65,12 +63,15 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ghcr.io/${{ github.repository_owner }}/eodt-frontend
+          tags: |
+            # This creates a tag from the short commit SHA, e.g., sha-a1b2c3d
+            type=sha,prefix=sha-,format=short
 
       - name: Build and push frontend image
         uses: docker/build-push-action@v5
         with:
-          context: ./src/frontend # The build context is your frontend directory
-          file: ./src/frontend/Dockerfile # Specifies the path to the new Dockerfile
+          context: ./src/frontend
+          file: ./src/frontend/Dockerfile
           push: true
           no-cache: true
           tags: ${{ steps.meta.outputs.tags }}
