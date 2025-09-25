@@ -17,5 +17,6 @@ venv/
 
 # Static files and model outputs that are handled by volumes
 # This prevents them from being copied into the image build context
-static/
+static/*
+!static/case_studies/
 save/
