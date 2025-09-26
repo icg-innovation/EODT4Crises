@@ -66,9 +66,6 @@ RUN python3.11 -m pip install --no-cache-dir -r requirements.txt
 # Copy your backend code
 COPY . .
 
-# Explicitly copy only case_studies into the image
-COPY static/case_studies /app/static/case_studies
-
 # Expose the backend port
 EXPOSE 4000
 
