@@ -745,7 +745,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function loadCaseStudiesJson() {
         try {
-            const res = await fetch(`${STATIC_BASE_URL}/static/case_studies/case_studies.json`);
+            const res = await fetch('static/case_studies/case_studies.json');
             if (!res.ok) throw new Error('Failed to fetch case_studies.json');
             const json = await res.json();
             CASE_STUDIES = json.cases || [];
