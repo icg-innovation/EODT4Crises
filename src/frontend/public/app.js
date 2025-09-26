@@ -737,30 +737,29 @@ document.addEventListener('DOMContentLoaded', () => {
     L.Map.prototype.toggleLayer = function(layer, show) { if (layer) { if (show) this.addLayer(layer); else this.removeLayer(layer); } };
 
     // Load case studies metadata (static JSON) and then initialize provider UI
-    loadCaseStudiesJson().catch(() => {});
     dataSourceSelect.dispatchEvent(new Event('change'));
 
-    // --- Case Studies (loaded from static JSON if available) ---
-    let CASE_STUDIES = null;
-
-    async function loadCaseStudiesJson() {
-        try {
-            const res = await fetch('static/case_studies/case_studies.json');
-            if (!res.ok) throw new Error('Failed to fetch case_studies.json');
-            const json = await res.json();
-            CASE_STUDIES = json.cases || [];
-        } catch (err) {
-            console.warn('Could not load case_studies.json, falling back to embedded list.', err);
-            // fallback to a minimal built-in list to ensure UI still works
-            CASE_STUDIES = [
-                {
-                    id: 'baltimore_bridge', title: 'Baltimore Bridge Collapse', bbox: '-76.535,39.211,-76.522,39.223', mid_date: '2024-03-26', pre_start: '2024-02-01', post_end: '2024-05-01', satellite: 'sentinel_2',
-                    assets: { pre_png: '/static/satellite_image_pre_1758716786.png', post_png: '/static/satellite_image_post_1758716830.png', predicted_mask_pre: '/static/predicted_mask_pre_1758719359.png', saved_graph_prefix: 'pre' }
-                }
-            ];
+    // --- Case Studies ---
+    let CASE_STUDIES = [
+        {
+            "id": "baltimore_bridge",
+            "title": "Baltimore Bridge Collapse",
+            "bbox": "-76.505,39.233,-76.539,39.209",
+            "mid_date": "2024-03-26",
+            "pre_start": "2024-02-01",
+            "post_end": "2024-05-01",
+            "satellite": "sentinel_2"
+        },
+        {
+            "id": "pikeville_ky",
+            "title": "Pikeville KY Floods",
+            "bbox": "-82.546,37.512,-82.523,37.493",
+            "mid_date": "2024-04-15",
+            "pre_start": "2024-03-01",
+            "post_end": "2024-05-01",
+            "satellite": "sentinel_2"
         }
-        renderCaseStudies();
-    }
+    ];
 
     function renderCaseStudies() {
         const list = document.getElementById('caseStudyList');
