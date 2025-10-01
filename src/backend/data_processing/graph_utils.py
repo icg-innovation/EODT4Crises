@@ -1,4 +1,5 @@
 import numpy as np
+import logging
 from shapely.geometry import LineString
 import matplotlib.pyplot as plt
 import networkx as nx
@@ -135,7 +136,7 @@ def find_segments_in_road_graph(adj_table):
     total_edge_num = len(all_unique_edges)
     if len(visited_edges) < total_edge_num:
         diff = total_edge_num - len(visited_edges)
-        print(f"!!! Warning: Isolated loop detected. {diff} edges are missing.")
+        logging.warning("Isolated loop detected. %d edges are missing.", diff)
 
     return segments
 

@@ -53,8 +53,8 @@ class GEEProvider(ImageProvider):
         except Exception as e:
             logging.error("Error during Earth Engine initialization: %s", e)
             # Instruct user how to authenticate if needed
-            print("\n*** GEE AUTHENTICATION NEEDED ***")
-            print("Please run 'earthengine authenticate' in your terminal.\n")
+            logging.warning("GEE AUTHENTICATION NEEDED")
+            logging.warning("Please run 'earthengine authenticate' in your terminal.")
             raise e
 
     def download_image(self, lat_st: float, lon_st: float, lat_ed: float, lon_ed: float,

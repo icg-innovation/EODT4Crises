@@ -12,8 +12,6 @@ import pickle
 import rasterio
 from rasterio.transform import Affine
 
-from torch.cuda import is_available
-
 from pyproj import Transformer
 import logging
 
@@ -22,6 +20,7 @@ from shapely.geometry import shape
 from shapely.ops import unary_union
 
 import geopandas as gpd
+import fiona
 
 from image_providers.provider_factory import get_provider
 from utils.image_processing import process_geotiff_image
@@ -34,16 +33,16 @@ SAM_ROAD_CHECKPOINT_PATH = os.path.abspath(os.path.join(CURRENT_DIR, "model_file
 SAM_ROAD_PROJECT_DIR = os.path.abspath(os.path.join(CURRENT_DIR, "data_processing"))
 backend_static_folder = os.path.abspath(os.path.join(CURRENT_DIR, "static"))
 
-print("--- Cleaning up old generated files ---")
+logging.info("Cleaning up old generated files")
 if os.path.exists(backend_static_folder):
     files_to_delete = glob.glob(os.path.join(backend_static_folder, "*.png"))
     files_to_delete += glob.glob(os.path.join(backend_static_folder, "*.tif"))
     for f_path in files_to_delete:
         try:
             os.remove(f_path)
-            print(f"Deleted: {os.path.basename(f_path)}")
+            logging.info("Deleted: %s", os.path.basename(f_path))
         except OSError as e:
-            print(f"Error deleting file {f_path}: {e}")
+            logging.error("Error deleting file %s: %s", f_path, e)
 else:
     os.makedirs(backend_static_folder)
 
@@ -111,7 +110,7 @@ def graph_to_geojson(adjacency_list, transform, crs):
             for dest_node_yx in dest_nodes_yx:
                 source_y_pixel, source_x_pixel = source_node_yx
                 dest_y_pixel, dest_x_pixel = dest_node_yx
-                
+
                 start_x_proj, start_y_proj = (source_x_pixel + 0.5, source_y_pixel + 0.5) * transform
                 end_x_proj, end_y_proj = (dest_x_pixel + 0.5, dest_y_pixel + 0.5) * transform
 
@@ -146,7 +145,7 @@ def get_roads():
     query_date = request.args.get("date")
 
     logging.info(f"Received request for OSM roads with bbox: {bbox} for date: {query_date}")
-    
+
     if not bbox:
         return jsonify({"error": "Missing 'bbox' query parameter"}), 400
     if not types_str:
@@ -184,7 +183,7 @@ def get_roads():
 def upload_image():
     if 'file' not in request.files:
         return jsonify({"error": "No file part in the request"}), 400
-    
+
     file = request.files['file']
     prefix = request.form.get('prefix', 'temp')
 
@@ -194,7 +193,7 @@ def upload_image():
     if file and file.filename.lower().endswith(('.tif', '.tiff')):
         raw_tiff_filename = f"temp_satellite_{prefix}.tif"
         save_path = os.path.join(backend_static_folder, raw_tiff_filename)
-        
+
         try:
             file.save(save_path)
             logging.info(f"Uploaded file saved to: {save_path}")
@@ -208,13 +207,13 @@ def upload_image():
         except Exception as e:
             logging.error(f"Failed to save uploaded file: {e}")
             return jsonify({"error": "Failed to save file on server."}), 500
-    
+
     return jsonify({"error": "Invalid file type. Please upload a GeoTIFF (.tif, .tiff)."}), 400
 
 @app.route("/api/download_satellite_image", methods=["POST"])
 def download_satellite_image():
     data = request.get_json()
-    
+
     bbox = data.get("bbox")
     start_date = data.get("start_date")
     end_date = data.get("end_date")
@@ -274,7 +273,7 @@ def process_satellite_image():
         unique_id = f"{prefix}_{int(time.time())}"
         png_filename = f"satellite_image_{unique_id}.png"
         png_path = os.path.join(backend_static_folder, png_filename)
-        
+
         leaflet_bounds = None
         raw_bounds = None
 
@@ -334,21 +333,15 @@ def get_predicted_roads():
         bbox_str = request.args.get("bbox")
         image_param = request.args.get("image")
 
-        # Default path (from uploads or downloads) — kept for backward compatibility
         default_geotiff = os.path.join(backend_static_folder, f"temp_satellite_{prefix}.tif")
 
-        # If the frontend passed a static image URL (e.g. '/static/case_studies/.../satellite_pre.tif'),
-        # convert it to a filesystem path inside backend_static_folder and validate it exists.
         input_geotiff_path = default_geotiff
         if image_param:
             try:
-                # Only accept paths that begin with '/static/' to avoid arbitrary file access
                 if not image_param.startswith('/static/'):
                     raise ValueError('Only /static/ paths are accepted for the image parameter')
-                # Map '/static/...' -> backend_static_folder/...
                 rel_path = image_param[len('/static/'):]
                 candidate_path = os.path.join(backend_static_folder, rel_path)
-                # Normalize path and ensure it is inside backend_static_folder
                 candidate_real = os.path.realpath(candidate_path)
                 if not candidate_real.startswith(os.path.realpath(backend_static_folder)):
                     raise ValueError('Image path is outside allowed static directory')
@@ -358,15 +351,11 @@ def get_predicted_roads():
                     logging.warning(f"Requested case study image not found: {candidate_real}; falling back to default: {default_geotiff}")
             except Exception as e:
                 logging.warning(f"Invalid image parameter provided: {e}; falling back to default geotiff.")
-        # By default we'll process the original file, but if a bbox is provided and the
-        # GeoTIFF has a valid CRS we will create a cropped temporary GeoTIFF and pass
-        # that to the inferencer so the blue-box crop is actually applied.
         image_to_process = input_geotiff_path
         cropped_path = None
         if not os.path.exists(input_geotiff_path):
             return jsonify({"error": f"GeoTIFF not found: temp_satellite_{prefix}.tif"}), 404
 
-    # If a bbox was provided try to crop the GeoTIFF to the geographic bbox
         leaflet_bounds = None
         if bbox_str and os.path.exists(input_geotiff_path):
             try:
@@ -376,10 +365,8 @@ def get_predicted_roads():
                     if src.crs is None:
                         logging.warning("Input GeoTIFF has no CRS; cannot apply geographic bbox crop. Running inference on full image.")
                     else:
-                        # Transform bbox to image CRS and build a window, then write a cropped GeoTIFF
                         left, bottom, right, top = rasterio.warp.transform_bounds('EPSG:4326', src.crs, min_lon, min_lat, max_lon, max_lat)
                         window = rasterio.windows.from_bounds(left, bottom, right, top, src.transform)
-                        # Read the windowed data and write a smaller GeoTIFF to speed up inference
                         data = src.read(window=window)
                         window_transform = src.window_transform(window)
                         out_meta = src.meta.copy()
@@ -396,12 +383,8 @@ def get_predicted_roads():
             except Exception as e:
                 logging.warning(f"Could not crop GeoTIFF to bbox; falling back to full image. Error: {e}")
 
-                # If the frontend passed a case-study image, check the same directory for
-                # saved prediction outputs (graph and mask). If present, return them directly
-                # so we don't run the ML model.
                 try:
                     case_dir = os.path.dirname(input_geotiff_path)
-                    # Candidate graph/mask filenames commonly used in saved case outputs
                     candidate_graphs = [
                         os.path.join(case_dir, f"graph_{prefix}.p"),
                         os.path.join(case_dir, f"{prefix}.p"),
@@ -423,12 +406,10 @@ def get_predicted_roads():
                         with open(found_graph, 'rb') as f:
                             predicted_graph_data = pickle.load(f)
 
-                        # Determine CRS/transform from the image_to_process (cropped or original)
                         with rasterio.open(image_to_process) as src:
                             crs = src.crs
                             transform = src.transform
 
-                        # If an accompanying transform JSON exists in the directory, prefer it
                         transform_json_path = None
                         for candidate in os.listdir(case_dir):
                             if candidate.endswith('_transform.json') or candidate.endswith('transform.json'):
@@ -459,7 +440,11 @@ def get_predicted_roads():
         model_output_dir = os.path.join(SAM_ROAD_PROJECT_DIR, "save", output_dir_name)
         python_executable = sys.executable
         inference_script_path = os.path.join(SAM_ROAD_PROJECT_DIR, "inferencer.py")
-        torch_device = "cuda" if is_available() else "cpu"
+        try:
+            from torch.cuda import is_available
+            torch_device = "cuda" if is_available() else "cpu"
+        except ImportError:
+            torch_device = "cpu"
 
         command = [
             python_executable, inference_script_path,
@@ -471,12 +456,10 @@ def get_predicted_roads():
         ]
 
         if bbox_str:
-            # still pass bbox to inferencer (it will additionally crop if possible),
-            # but we've already created a cropped GeoTIFF in image_to_process where applicable.
             command.extend(["--bbox"])
             command.extend(bbox_str.split(','))
 
-        print(f"--- Executing inference command: {' '.join(command)} ---")
+        logging.info("Executing inference command: %s", ' '.join(command))
 
         try:
             subprocess.run(command, capture_output=True, text=True, check=True, cwd=SAM_ROAD_PROJECT_DIR)
@@ -486,7 +469,7 @@ def get_predicted_roads():
 
         graph_path = os.path.join(model_output_dir, "graph", "0.p")
         mask_image_path = os.path.join(model_output_dir, "mask", "0_road.png")
-        transform_path = os.path.join(model_output_dir, "graph", "0_transform.json") # Path to the new transform file
+        transform_path = os.path.join(model_output_dir, "graph", "0_transform.json")
 
         if not all(os.path.exists(p) for p in [graph_path, mask_image_path]):
             return jsonify({"error": "Model output or georeference file not found."}), 500
@@ -494,14 +477,13 @@ def get_predicted_roads():
         with open(graph_path, "rb") as f:
             predicted_graph_data = pickle.load(f)
 
-        # Use the processed image (cropped if created) to determine CRS/transform
         with rasterio.open(image_to_process) as src:
             crs = src.crs
             transform = src.transform
             if os.path.exists(transform_path):
                 with open(transform_path, 'r') as f_transform:
                     transform = Affine.from_gdal(*json.load(f_transform))
-        
+
         predicted_roads_geojson = graph_to_geojson(predicted_graph_data, transform, crs)
 
         unique_id = f"{prefix}_{int(time.time())}"
@@ -531,7 +513,7 @@ def get_prediction_geojson(prefix):
 
     with rasterio.open(geotiff_path) as src:
         crs = src.crs
-        transform = src.transform # Default transform
+        transform = src.transform
         if os.path.exists(transform_path):
             with open(transform_path, 'r') as f_transform:
                 transform = Affine.from_gdal(*json.load(f_transform))
@@ -563,18 +545,15 @@ def compare_roads():
         if not osm_lines:
             return jsonify({"error": "No OSM roads found in the data to use as a reference."}), 404
 
-        # Use a small buffer to account for minor prediction inaccuracies
         post_union = unary_union(post_lines).buffer(0.0001) if post_lines else None
         osm_union = unary_union(osm_lines).buffer(0.0001)
 
         damaged_roads = []
         for feature in pre_event_geojson["features"]:
             pre_line = shape(feature["geometry"])
-            # A road is considered damaged if it was predicted before the event,
-            # it aligns with a known OSM road, but it was NOT predicted after the event.
             is_on_osm = pre_line.intersects(osm_union)
             is_in_post = post_union and pre_line.intersects(post_union)
-            
+
             if is_on_osm and not is_in_post:
                 damaged_roads.append(feature)
 
@@ -589,31 +568,40 @@ def compare_roads():
 def upload_geopackage():
     if 'file' not in request.files:
         return jsonify({"error": "No file part in the request"}), 400
-    
-    file = request.files['file']
 
+    file = request.files['file']
     if file.filename == '':
         return jsonify({"error": "No selected file"}), 400
 
-    if file and file.filename.lower().endswith('.gpkg'):
-        try:
-            # Read the geopackage file in memory
-            gdf = gpd.read_file(file)
-            
-            # Reproject to WGS84 (EPSG:4326) if not already
+    if not file.filename.lower().endswith('.gpkg'):
+        return jsonify({"error": "Invalid file type. Please upload a GeoPackage (.gpkg) file."}), 400
+
+    temp_gpkg_path = os.path.join(backend_static_folder, f"temp_{file.filename}")
+
+    try:
+        file.save(temp_gpkg_path)
+
+        layers_data = []
+        for layer_name in fiona.listlayers(temp_gpkg_path):
+            gdf = gpd.read_file(temp_gpkg_path, layer=layer_name)
+
+            if gdf.empty:
+                continue
+
             if gdf.crs and gdf.crs.to_epsg() != 4326:
                 gdf = gdf.to_crs("EPSG:4326")
 
-            # Convert to GeoJSON
             geojson_data = json.loads(gdf.to_json())
-            
-            return jsonify(geojson_data)
+            layers_data.append({"name": layer_name, "geojson": geojson_data})
 
-        except Exception as e:
-            logging.error(f"Failed to process GeoPackage file: {e}")
-            return jsonify({"error": "Failed to process GeoPackage file.", "details": str(e)}), 500
-    
-    return jsonify({"error": "Invalid file type. Please upload a GeoPackage (.gpkg) file."}), 400
+        return jsonify(layers_data)
+
+    except Exception as e:
+        logging.error(f"Failed to process GeoPackage file: {e}", exc_info=True)
+        return jsonify({"error": "Failed to process GeoPackage file.", "details": str(e)}), 500
+    finally:
+        if os.path.exists(temp_gpkg_path):
+            os.remove(temp_gpkg_path)
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=4000, debug=True)

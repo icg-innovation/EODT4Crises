@@ -4,6 +4,7 @@ import torch
 import cv2
 import rasterio
 import json
+import logging
 from rasterio.warp import transform_bounds
 
 from utils import load_config, create_output_dir_and_save_config
@@ -28,7 +29,7 @@ parser.add_argument("--bbox", type=float, nargs=4, default=None, help="Bounding 
 parser.add_argument("--images", type=str, nargs="+", required=True, help="List of image paths to process")
 
 args = parser.parse_args()
-print(f"--- inferencer.py: Parsed arguments: {args} ---")
+logging.info("Parsed arguments: %s", args)
 
 def _gen_positions(L, win, stride):
     if L <= win:
@@ -74,7 +75,7 @@ def infer_one_img(net, img_path, config, bbox=None, target_resolution_m=10.0, ov
                 window = from_bounds(left, bottom, right, top, src.transform)
 
             except Exception as e:
-                print(f"Warning: Could not apply bbox; using full image. Error: {e}")
+                logging.warning("Could not apply bbox; using full image. Error: %s", e)
 
         transform_lr = src.window_transform(window) if window else src.transform
         img_lr = src.read([1, 2, 3], window=window).transpose(1, 2, 0)
@@ -86,7 +87,7 @@ def infer_one_img(net, img_path, config, bbox=None, target_resolution_m=10.0, ov
     original_resolution = abs(transform_lr.a)
     scale_factor = original_resolution / float(target_resolution_m)
     if scale_factor < 1.0:
-        print(f"Input resolution ({original_resolution:.3f} m/px) is already finer than target; setting scale_factor=1.0.")
+        logging.info("Input resolution (%.3f m/px) is already finer than target; setting scale_factor=1.0.", original_resolution)
         scale_factor = 1.0
 
     H_lr, W_lr = img_lr.shape[:2]
@@ -164,7 +165,7 @@ if __name__ == "__main__":
 
     net = SAMRoad(config)
     checkpoint = torch.load(args.checkpoint, map_location="cpu", weights_only=True)
-    print(f"##### Loading Trained CKPT {args.checkpoint} #####")
+    logging.info("Loading trained checkpoint: %s", args.checkpoint)
     net.load_state_dict(checkpoint["state_dict"], strict=True)
     net.eval().to(device)
 

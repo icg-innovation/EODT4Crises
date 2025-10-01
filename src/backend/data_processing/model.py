@@ -2,8 +2,8 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
-# from torchvision.ops import nms
 import math
+import logging
 
 from functools import partial
 from torchmetrics.classification import (
@@ -19,12 +19,7 @@ from segment_anything.modeling.prompt_encoder import PromptEncoder
 from segment_anything.modeling.transformer import TwoWayTransformer
 from segment_anything.modeling.common import LayerNorm2d
 
-import pprint
 import torchvision
-
-# Only needed for the ablation experiment of using a ViT-B model without SA-1B pre-training.
-# It depends on detectron2 library. Not super important.
-# import vitdet
 
 
 class BilinearSampler(nn.Module):
@@ -406,10 +401,8 @@ class SAMRoad(pl.LightningModule):
                     state_dict_to_load[k] = ckpt_state_dict[k]
                 else:
                     mismatch_names.append(k)
-            print("###### Matched params ######")
-            pprint.pprint(matched_names)
-            print("###### Mismatched params ######")
-            pprint.pprint(mismatch_names)
+            logging.info("Matched params: %s", matched_names)
+            logging.info("Mismatched params: %s", mismatch_names)
 
             self.matched_param_names = set(matched_names)
             self.load_state_dict(state_dict_to_load, strict=False)
@@ -579,18 +572,7 @@ class SAMRoad(pl.LightningModule):
             topo_logits, topo_gt.unsqueeze(-1).to(torch.float32)
         )
 
-        #### DEBUG NAN
-        for nan_index in torch.nonzero(torch.isnan(topo_loss[:, :, :, 0])):
-            print("nan index: B, Sample, Pair")
-            print(nan_index)
-            import pdb
-
-            pdb.set_trace()
-
-        #### DEBUG NAN
-
         topo_loss *= topo_loss_mask.unsqueeze(-1)
-        # topo_loss = torch.nansum(torch.nansum(topo_loss) / topo_loss_mask.sum())
         topo_loss = topo_loss.sum() / topo_loss_mask.sum()
 
         loss = mask_loss + topo_loss
@@ -700,7 +682,7 @@ class SAMRoad(pl.LightningModule):
 
     def on_test_end(self):
         def find_best_threshold(pr_curve_metric, category):
-            print(f"======= {category} ======")
+            logging.info("Finding best threshold for %s", category)
             precision, recall, thresholds = pr_curve_metric.compute()
             f1_scores = 2 * (precision * recall) / (precision + recall)
             best_threshold_index = torch.argmax(f1_scores)
@@ -708,11 +690,12 @@ class SAMRoad(pl.LightningModule):
             best_precision = precision[best_threshold_index]
             best_recall = recall[best_threshold_index]
             best_f1 = f1_scores[best_threshold_index]
-            print(
-                f"Best threshold {best_threshold}, P={best_precision} R={best_recall} F1={best_f1}"
+            logging.info(
+                "Best threshold %s, P=%s R=%s F1=%s", 
+                best_threshold, best_precision, best_recall, best_f1
             )
 
-        print("======= Finding best thresholds ======")
+        logging.info("Finding best thresholds")
         find_best_threshold(self.keypoint_pr_curve, "keypoint")
         find_best_threshold(self.road_pr_curve, "road")
         find_best_threshold(self.topo_pr_curve, "topo")
@@ -779,7 +762,7 @@ class SAMRoad(pl.LightningModule):
 
         for i, param_dict in enumerate(param_dicts):
             param_num = sum([int(p.numel()) for p in param_dict["params"]])
-            print(f"optim param dict {i} params num: {param_num}")
+            logging.debug("Optimizer param dict %s params num: %s", i, param_num)
 
         # optimizer = torch.optim.AdamW(param_dicts, lr=self.config.BASE_LR, betas=(0.9, 0.999), weight_decay=0.1)
         optimizer = torch.optim.Adam(param_dicts, lr=self.config.BASE_LR)

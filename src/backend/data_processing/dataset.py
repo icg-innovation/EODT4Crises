@@ -63,7 +63,6 @@ def south_uk_data_partition():
 def get_patch_info_one_img(
     image_index, image_dims, sample_margin, patch_size, patches_per_edge
 ):
-    # --- START OF FIX ---
     # Unpack the height and width from the image_dims tuple
     img_h, img_w = image_dims
     patch_info = []
@@ -83,8 +82,7 @@ def get_patch_info_one_img(
     for y in eval_samples_y:
         for x in eval_samples_x:
             patch_info.append((image_index, (x, y), (x + patch_size, y + patch_size)))
-    # --- END OF FIX ---
-    
+
     return patch_info
 
 
@@ -112,7 +110,7 @@ class GraphLabelGenerator:
         self.graph_rtee = rtree.index.Index()
         for i, v in enumerate(self.subdivide_points):
             x, y = v
-            # hack to insert single points
+            # Insert single points as zero-area boxes
             self.graph_rtee.insert(i, (x, y, x, y))
         # kdtree for spherical query
         self.graph_kdtree = scipy.spatial.KDTree(self.subdivide_points)
@@ -164,8 +162,7 @@ class GraphLabelGenerator:
         # Use NMS to downsample, params shall resemble inference time
         patch_indices = np.array(list(patch_indices))
         if len(patch_indices) == 0:
-            # print("==== Patch is empty ====")
-            # this shall be rare, but if no points in side the patch, return null stuff
+            # This should be rare, but if no points inside the patch, return null stuff
             sample_num = self.config.TOPO_SAMPLE_NUM
             max_nbr_queries = self.config.MAX_NEIGHBOR_QUERIES
             fake_points = np.array([[0.0, 0.0]], dtype=np.float32)
@@ -353,7 +350,7 @@ def test_graph_label_generator():
                         (255, 255, 255),
                         1,
                     )
-        cv2.imwrite(f"debug/viz_{i}.png", rgb_patch)
+        # Debug visualization removed for production
 
 
 def graph_collate_fn(batch):

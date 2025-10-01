@@ -86,8 +86,6 @@ def process_geotiff_image(tif_path, save_path, satellite, size=(512, 512), brigh
         else:
             raise ValueError(f"Processing not implemented for satellite: {satellite}")
 
-        # img_resized = Image.fromarray(img).resize(size, Image.BILINEAR)
-
         if np.all(img == 0, axis=-1).sum() > 0.97 * img.size / 3:
             logging.warning("Image has excessive black pixels, skipping.")
             return None

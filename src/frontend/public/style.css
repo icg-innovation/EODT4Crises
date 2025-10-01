@@ -1,5 +1,5 @@
 :root {
-    /* Define your custom road colors here */
+    /* Custom road colors */
     --osm-road-color: #ff0000;
     --pre-event-color: #00ffff;
     --post-event-color: #ff00ff;
@@ -127,7 +127,7 @@ select, input[type="date"], input[type="range"] {
     display: flex;
     align-items: center;
     margin-bottom: 5px;
-    gap: 8px; /* Use gap for consistent spacing */
+    gap: 8px;
 }
 
 .layer-control:last-child {
@@ -307,7 +307,7 @@ input:checked + .slider:before {
     padding: 8px;
     border-radius: 6px;
     background: #fff;
-    border: 1px solid rgba(0,0,0,0.14); /* darker outline */
+    border: 1px solid rgba(0,0,0,0.14);
     box-shadow: 0 1px 3px rgba(0,0,0,0.05);
 }
 
@@ -386,7 +386,7 @@ input:checked + .slider:before {
 /* Legend Styling */
 #legend {
     position: absolute;
-    bottom: 85px; /* Position above the base map toggle */
+    bottom: 85px; /* above the base map toggle */
     right: 10px;
     z-index: 1000;
     background: var(--bg-color);
@@ -448,14 +448,12 @@ input:checked + .slider:before {
 }
 
 /* Download Panel Styling */
-/* Replace with this... */
-/* Make the top-right panels match the left controls look */
 #top-right-panels {
     position: absolute;
     top: 10px;
     right: 10px;
     z-index: 1001;
-    width: 240px; /* container width */
+    width: 240px;
     display: flex;
     flex-direction: column;
     gap: 6px;
@@ -465,7 +463,6 @@ input:checked + .slider:before {
     box-shadow: 0 2px 5px rgba(0,0,0,0.2);
 }
 
-/* remove double backgrounds in child panels so they appear as sections */
 #top-right-panels > div {
     background: transparent;
     box-shadow: none;
@@ -477,13 +474,12 @@ input:checked + .slider:before {
     width: 100%;
 }
 
-/* Case Studies panel: positioned below the Download panel */
 #case-studies {
     width: 100%;
 }
 
 #case-studies .collapsible-content {
-    display: block; /* keep the case list visible by default */
+    display: block;
 }
 
 #download-list {
@@ -530,7 +526,7 @@ input:checked + .slider:before {
 }
 
 /* Greyscale style for leaflet map */
-/* This rule will only be active when the map div has the 'greyscale-enabled' class */
+/*  only be active when the map div has the 'greyscale-enabled' class */
 #map.greyscale-enabled .leaflet-tile-container {
     filter: grayscale(100%);
 }
@@ -546,4 +542,41 @@ input:checked + .slider:before {
     background: var(--bg-color);
     padding: 5px 10px;
     border-radius: var(--border-radius);
+}
+
+/* Geopackage Styling */
+.inundation-icon {
+    position: absolute;
+    top: -12px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 1.2em;
+    color: #00BFFF;
+    -webkit-text-stroke: 1px white;
+    text-shadow: 1px 1px 0 white, -1px -1px 0 white, 1px -1px 0 white, -1px 1px 0 white;
+    pointer-events: none;
+}
+
+.marker-pin {
+    width: 30px;
+    height: 30px;
+    border-radius: 50% 50% 50% 0;
+    background: #000;
+    position: absolute;
+    transform: rotate(-45deg);
+    left: 50%;
+    top: 50%;
+    margin: -15px 0 0 -15px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.4);
+    border: 2px solid white;
+}
+
+.custom-div-icon i {
+    position: absolute;
+    width: 30px;
+    text-align: center;
+    left: 2px;
+    top: 15px;
+    color: white;
+    font-size: 16px;
 }

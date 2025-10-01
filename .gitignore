@@ -27,8 +27,9 @@ venv/
 
 # Project-specific ignores
 # =================================================================
-# Model files (checkpoints, configs) - from your original .gitignore
-model_files/
+# Model files (checkpoints, configs)
+src/backend/model_files/sam_vit_b_01ec64.pth
+src/backend/model_files/spacenet_vitb_256_e10.ckpt
 
 # Generated output directories from inference and testing
 src/backend/data_processing/save/

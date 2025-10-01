@@ -74,7 +74,6 @@ def is_connected_bresenham(cost, start, end):
     cv2.circle(cost, start, kp_block_radius, 0, -1)
     cv2.circle(cost, end, kp_block_radius, 0, -1)
 
-    # mean_cost = np.mean(cost[rr, cc])
     max_cost = np.max(cost[rr, cc])
 
     cv2.circle(cost, start, kp_block_radius, 255, -1)
@@ -146,18 +145,15 @@ def extract_graph_points(keypoint_mask, road_mask, config):
 def extract_graph_astar(keypoint_mask, road_mask, config):
     kps = extract_graph_points(keypoint_mask, road_mask, config)
 
-    # cost_field = create_cost_field(kps, road_mask)
     cost_field = create_cost_field_astar(kps, road_mask)
     viz_cost_field = np.array(cost_field)
     viz_cost_field[viz_cost_field == 0] = 255
-    # cv2.imwrite('astar_cost_dbg.png', viz_cost_field)
     pathfinder = tcod.path.AStar(cost_field)
 
     tree = KDTree(kps)
     graph = nx.Graph()
     checked = set()
     for p in kps:
-        # TODO: add radius to config
         neighbor_indices = tree.query_radius(
             p[np.newaxis, :], r=config.NEIGHBOR_RADIUS
         )[0]
@@ -166,7 +162,6 @@ def extract_graph_astar(keypoint_mask, road_mask, config):
             start, end = (int(p[0]), int(p[1])), (int(n[0]), int(n[1]))
             if (start, end) in checked:
                 continue
-            # if is_connected_bresenham(cost_field, p, n):
             if is_connected_astar(
                 pathfinder, cost_field, p, n, max_path_len=config.NEIGHBOR_RADIUS
             ):
@@ -196,19 +191,6 @@ def visualize_image_and_graph(img, graph):
 
 
 if __name__ == "__main__":
-    # cost = np.array(
-    #     [[1, 0, 1],
-    #      [0, 1, 0],
-    #      [0, 0, 0]],
-    #      dtype=np.int32
-    # )
-    # pathfinder = tcod.path.AStar(cost)
-    # print(pathfinder.get_path(0, 2, 0, 0))
-    # cost[1, 1] = 0
-    # print(pathfinder.get_path(0, 2, 0, 0))
-    # cost[1, 1] = 1
-    # print(pathfinder.get_path(0, 2, 0, 0))
-
     rgb_pattern = "./cityscale/20cities/region_{}_sat.png"
     keypoint_mask_pattern = "./cityscale/processed/keypoint_mask_{}.png"
     road_mask_pattern = "./cityscale/processed/road_mask_{}.png"
