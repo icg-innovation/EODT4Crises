@@ -27,8 +27,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Global State and Constants ---
     const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
 
-    const API_BASE_URL = isLocal ? 'http://localhost:4000/api' : '/eodt4crises/api';
-    const STATIC_BASE_URL = isLocal ? 'http://localhost:4000' : '/eodt4crises';
+    const API_BASE_URL = isLocal ? 'http://localhost:4000/api' : 'https://eodt-backend.icg-pi-cluster.click/api';
+    const STATIC_BASE_URL = isLocal ? 'http://localhost:4000' : 'https://eodt-backend.icg-pi-cluster.click';
 
     let drawnRectangle = null;
     let analysisState = {
