@@ -1,11 +1,12 @@
-# This workflow builds and pushes both the backend and frontend Docker images
-# to the GitHub Container Registry (GHCR) with a unique tag based on the commit SHA.
-
 name: Docker Build and Push to GHCR
 
 on:
   push:
     branches: [ "main" ]
+    paths:
+      - 'src/backend/**'
+      - 'src/frontend/**'
+      - '.github/workflows/docker-publish.yml'
 
 jobs:
   build-and-push-backend:
@@ -30,7 +31,6 @@ jobs:
         with:
           images: ghcr.io/${{ github.repository_owner }}/eodt-backend
           tags: |
-            # This creates a tag from the short commit SHA, e.g., sha-a1b2c3d
             type=sha,prefix=sha-,format=short
 
       - name: Build and push backend image
@@ -41,6 +41,8 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
   build-and-push-frontend:
     runs-on: ubuntu-latest
@@ -64,7 +66,6 @@ jobs:
         with:
           images: ghcr.io/${{ github.repository_owner }}/eodt-frontend
           tags: |
-            # This creates a tag from the short commit SHA, e.g., sha-a1b2c3d
             type=sha,prefix=sha-,format=short
 
       - name: Build and push frontend image
@@ -73,6 +74,7 @@ jobs:
           context: ./src/frontend
           file: ./src/frontend/Dockerfile
           push: true
-          no-cache: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
